@@ -305,7 +305,7 @@
     .dd-back-btn { font-size: 0.78rem; color: var(--blue-dark); cursor: pointer; font-weight: 600; }
     .dd-back-btn:hover { text-decoration: underline; }
     .dd-cat-label { font-size: 0.82rem; font-weight: 700; color: var(--blue-dark); letter-spacing: 0.04em; }
-    .desc-dd-grid { display: grid; gap: 4px; max-height: 220px; overflow-y: auto; }
+    .desc-dd-grid { display: grid; gap: 4px; }
     .desc-dd-item {
       padding: 7px 8px;
       font-size: 0.78rem;
@@ -1412,14 +1412,14 @@
       function showCategoryProducts(cat) {
         const products = PRODUCT_CATEGORIES[cat];
         const cols    = cat === 'BEADS' ? 4 : 3;
-        const minW    = cat === 'BEADS' ? 480 : 320;
+        const minW    = cat === 'BEADS' ? 620 : 340;
         dropdown.style.minWidth = minW + 'px';
         dropdown.innerHTML =
           '<div class="dd-back-row">' +
             '<span class="dd-back-btn" data-action="back">&#8592;</span>' +
             '<span class="dd-cat-label">' + cat + '</span>' +
           '</div>' +
-          '<div class="desc-dd-grid" style="grid-template-columns:repeat(' + cols + ',1fr)">' +
+          '<div class="desc-dd-grid" style="grid-template-columns:repeat(' + cols + ',auto)">' +
             products.map(function(p){ return '<div class="desc-dd-item">' + p + '</div>'; }).join('') +
           '</div>';
         positionDropdown();
@@ -1464,7 +1464,7 @@
           });
           if (!matches.length) { dropdown.style.display = 'none'; return; }
           dropdown.innerHTML =
-            '<div class="desc-dd-grid" style="grid-template-columns:repeat(3,1fr)">' +
+            '<div class="desc-dd-grid" style="grid-template-columns:repeat(3,auto)">' +
               matches.map(function(p){ return '<div class="desc-dd-item">' + p + '</div>'; }).join('') +
             '</div>';
           positionDropdown();
