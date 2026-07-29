@@ -2487,6 +2487,36 @@
     }
 
     // ── Render the flat client list ──
+    // Fill the invoice form (left side) with a client's name, phone, and last invoice's line items
+    function loadClientIntoForm(client) {
+      document.getElementById('client-name').value  = client.name  || '';
+      document.getElementById('client-phone').value = client.phone || '';
+
+      // Find the most recent stored invoice that has line items
+      const purchases = (client.purchases || []).slice().reverse();
+      const lastWithItems = purchases.find(function (p) { return p.lineItems && p.lineItems.length; });
+      const items = lastWithItems ? lastWithItems.lineItems : [];
+
+      // Clear all existing rows
+      while (tbody.rows.length > 0) tbody.deleteRow(0);
+
+      if (items.length === 0) {
+        addRow(); // one blank row if no stored items
+      } else {
+        items.forEach(function (item) {
+          const tr = createItemRow();
+          tbody.appendChild(tr);
+          tr.querySelector('.item-service').value = (item.service === '—' ? '' : item.service) || '';
+          tr.querySelector('.item-unit').value    = item.unit || 'KG';
+          tr.querySelector('.item-qty').value     = item.qtyDisplay  || (item.qty  > 0 ? item.qty  : '');
+          tr.querySelector('.item-rate').value    = item.rateDisplay || (item.rate > 0 ? item.rate : '');
+          // Trigger recalc so the Amount cell updates
+          tr.querySelector('.item-qty').dispatchEvent(new Event('input'));
+        });
+      }
+      refreshDelButtons();
+    }
+
     function renderClientList(clients) {
       const listEl   = document.getElementById('client-list');
       const totalBar = document.getElementById('ledger-total-bar');
@@ -2519,9 +2549,7 @@
           '</div>' +
           '<div class="ci-amount">' + fmtINR(c.outstanding) + '</div>';
         item.addEventListener('click', function () {
-          // Auto-fill invoice form with this client's details
-          document.getElementById('client-name').value  = c.name  || '';
-          document.getElementById('client-phone').value = c.phone || '';
+          loadClientIntoForm(c);
           showClientDetail(c);
         });
         listEl.appendChild(item);
