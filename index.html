@@ -305,7 +305,7 @@
     .dd-back-btn { font-size: 0.78rem; color: var(--blue-dark); cursor: pointer; font-weight: 600; }
     .dd-back-btn:hover { text-decoration: underline; }
     .dd-cat-label { font-size: 0.82rem; font-weight: 700; color: var(--blue-dark); letter-spacing: 0.04em; }
-    .desc-dd-grid { display: grid; gap: 4px; }
+    .desc-dd-grid { display: grid; gap: 4px; max-height: 220px; overflow-y: auto; }
     .desc-dd-item {
       padding: 7px 8px;
       font-size: 0.78rem;
@@ -1374,22 +1374,26 @@
       document.body.appendChild(dropdown);
 
       function positionDropdown() {
-        const rect  = svcInput.getBoundingClientRect();
-        const vw    = window.innerWidth;
-        const vh    = window.innerHeight;
+        const rect = svcInput.getBoundingClientRect();
+        const vw   = window.innerWidth;
+        const vh   = window.innerHeight;
+        // Render off-screen to measure real size with no visual flash
+        dropdown.style.top  = '-9999px';
+        dropdown.style.left = '-9999px';
         dropdown.style.display = 'flex';
-        const ddW   = Math.min(dropdown.offsetWidth, vw - 16);
+        const ddW = Math.min(dropdown.offsetWidth, vw - 16);
         dropdown.style.width = ddW + 'px';
+        const ddH = dropdown.offsetHeight;
+        // Horizontal: anchor to input left, clamp to viewport
         let left = rect.left;
         if (left + ddW > vw - 8) left = vw - ddW - 8;
         if (left < 8) left = 8;
-        const ddH       = dropdown.offsetHeight;
-        const spaceBelow = vh - rect.bottom - 8;
-        const spaceAbove = rect.top - 8;
-        let top;
-        if (ddH <= spaceBelow)       top = rect.bottom + 4;
-        else if (ddH <= spaceAbove)  top = rect.top - ddH - 4;
-        else                          top = Math.max(8, vh - ddH - 8);
+        // Vertical: prefer below; flip above only if fits there better
+        let top = rect.bottom + 4;
+        if (top + ddH > vh - 8) {
+          const topAbove = rect.top - ddH - 4;
+          top = topAbove >= 8 ? topAbove : Math.max(8, vh - ddH - 8);
+        }
         dropdown.style.top  = top  + 'px';
         dropdown.style.left = left + 'px';
         dropdown.style.display = 'none';
@@ -1407,7 +1411,9 @@
 
       function showCategoryProducts(cat) {
         const products = PRODUCT_CATEGORIES[cat];
-        const cols = cat === 'BEADS' ? 4 : cat === 'PAL' ? 3 : 3;
+        const cols    = cat === 'BEADS' ? 4 : 3;
+        const minW    = cat === 'BEADS' ? 480 : 320;
+        dropdown.style.minWidth = minW + 'px';
         dropdown.innerHTML =
           '<div class="dd-back-row">' +
             '<span class="dd-back-btn" data-action="back">&#8592;</span>' +
@@ -1426,6 +1432,7 @@
       }
 
       function showCategoryScreen() {
+        dropdown.style.minWidth = '280px';
         dropdown.innerHTML =
           '<div class="dd-cat-row">' +
             Object.keys(PRODUCT_CATEGORIES).map(function(cat){
