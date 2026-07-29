@@ -1261,10 +1261,10 @@
     // ─────────────────────────────────────────────
     function fmtINR(n) {
       const num = Number(n);
-      if (isNaN(num)) return '₹0.00';
+      if (isNaN(num)) return '₹0.0';
       return '₹' + num.toLocaleString('en-IN', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1
       });
     }
 
@@ -1357,8 +1357,8 @@
     function pdfINR(n) {
       const num = Number(n) || 0;
       return 'Rs. ' + num.toLocaleString('en-IN', {
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 1
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
       });
     }
 
