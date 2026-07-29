@@ -267,7 +267,29 @@
 
     table.items tbody tr:last-child td { border-bottom: none; }
 
-    .col-service { min-width: 140px; }
+    .col-service { min-width: 140px; position: relative; }
+
+    .desc-dropdown {
+      position: absolute;
+      top: calc(100% + 2px);
+      left: 0;
+      min-width: 100%;
+      background: #fff;
+      border: 1.5px solid var(--blue-border);
+      border-radius: 9px;
+      box-shadow: 0 6px 24px rgba(26,58,107,0.16);
+      z-index: 9999;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .desc-dd-item {
+      padding: 9px 14px;
+      font-size: 0.87rem;
+      cursor: pointer;
+      white-space: nowrap;
+      color: var(--gray-text);
+    }
+    .desc-dd-item:hover, .desc-dd-item.active { background: var(--blue-light); color: var(--blue-dark); font-weight: 600; }
     .col-unit    { width: 62px; }
     .col-qty     { width: 130px; }
     .col-rate    { width: 100px; }
@@ -1187,6 +1209,15 @@
     // Every Supabase read/write filters rows by this value.
     let workspaceCode = null;
 
+    // Pre-defined product catalogue for description autocomplete
+    const PRODUCTS = (function () {
+      const types = ['ROSEGOLD', 'SILVER', 'RABDI', 'GOLDEN', 'MILKY', 'BLACK', 'COLOR'];
+      const sizes = ['1.7 MM', '2 MM', '2.5 MM', '3.8 MM'];
+      const list = [];
+      types.forEach(function (t) { sizes.forEach(function (s) { list.push(t + ' ' + s); }); });
+      return list;
+    }());
+
     // ─────────────────────────────────────────────
     // Logo: show image once loaded, else keep emoji
     // ─────────────────────────────────────────────
@@ -1302,6 +1333,35 @@
       const qtyInput  = tr.querySelector('.item-qty');
       const rateInput = tr.querySelector('.item-rate');
       const amountDiv = tr.querySelector('.item-amount');
+
+      // Product autocomplete dropdown
+      const svcInput = tr.querySelector('.item-service');
+      const svcTd    = tr.querySelector('.col-service');
+      const dropdown = document.createElement('div');
+      dropdown.className = 'desc-dropdown';
+      dropdown.style.display = 'none';
+      svcTd.appendChild(dropdown);
+
+      function showDropdown(filter) {
+        const q = (filter || '').toLowerCase();
+        const matches = q ? PRODUCTS.filter(function(p){ return p.toLowerCase().includes(q); }) : PRODUCTS;
+        if (!matches.length) { dropdown.style.display = 'none'; return; }
+        dropdown.innerHTML = matches.map(function(p){
+          return '<div class="desc-dd-item">' + p + '</div>';
+        }).join('');
+        dropdown.style.display = 'block';
+        dropdown.querySelectorAll('.desc-dd-item').forEach(function(item){
+          item.addEventListener('mousedown', function(e){
+            e.preventDefault();
+            svcInput.value = item.textContent;
+            dropdown.style.display = 'none';
+          });
+        });
+      }
+
+      svcInput.addEventListener('focus', function(){ showDropdown(this.value); });
+      svcInput.addEventListener('input', function(){ showDropdown(this.value); });
+      svcInput.addEventListener('blur',  function(){ setTimeout(function(){ dropdown.style.display='none'; }, 150); });
 
       // Amount = Qty × Rate; then roll up to totals
       function recalcAmount() {
