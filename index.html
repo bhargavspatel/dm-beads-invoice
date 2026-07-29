@@ -1434,8 +1434,8 @@
             '<td style="' + C1 + 'text-align:center;">' + (i+1) + '</td>' +
             '<td style="' + C1 + '">' + (item.service||'') + '</td>' +
             '<td style="' + C1 + 'text-align:center;">' + (item.unit||'') + '</td>' +
-            '<td style="' + C1 + 'text-align:right;">' + (item.qty>0?smartNum(item.qty):'') + '</td>' +
-            '<td style="' + C1 + 'text-align:right;">' + (item.rate>0?smartNum(item.rate):'') + '</td>' +
+            '<td style="' + C1 + 'text-align:right;">' + (item.qty>0?(item.qtyDisplay||smartNum(item.qty)):'') + '</td>' +
+            '<td style="' + C1 + 'text-align:right;">' + (item.rate>0?(item.rateDisplay||smartNum(item.rate)):'') + '</td>' +
             '<td style="' + C1 + 'text-align:right;">' + (item.amount>0?smartNum(item.amount):'') + '</td>' +
           '</tr>';
         }).join('');
@@ -1927,12 +1927,19 @@
 
         const lineItems = [];
         document.querySelectorAll('#items-body tr').forEach(function (tr) {
-          const service = tr.querySelector('.item-service').value.trim();
-          const unit    = tr.querySelector('.item-unit').value.trim().toUpperCase();
-          const qty     = parseFloat(tr.querySelector('.item-qty').value)  || 0;
-          const rate    = parseFloat(tr.querySelector('.item-rate').value) || 0;
+          const service  = tr.querySelector('.item-service').value.trim();
+          const unit     = tr.querySelector('.item-unit').value.trim().toUpperCase();
+          const qtyStr   = tr.querySelector('.item-qty').value.trim();
+          const rateStr  = tr.querySelector('.item-rate').value.trim();
+          const qty      = parseFloat(qtyStr)  || 0;
+          const rate     = parseFloat(rateStr) || 0;
           if (service || qty || rate) {
-            lineItems.push({ service: service || '—', unit: unit || '', qty, rate, amount: qty * rate });
+            lineItems.push({
+              service: service || '—', unit: unit || '',
+              qty, qtyDisplay: qtyStr,
+              rate, rateDisplay: rateStr,
+              amount: qty * rate,
+            });
           }
         });
 
@@ -2085,8 +2092,8 @@
                   doc.text(desc, CX[1] + 2, y + ROW_H/2 + 1.8);
                   continue;
                 case 2: txt = row.unit || ''; al = 'C'; break;
-                case 3: txt = row.qty > 0 ? smartNum(row.qty) : ''; al = 'R'; break;
-                case 4: txt = row.rate > 0 ? smartNum(row.rate) : ''; al = 'R'; break;
+                case 3: txt = row.qty > 0 ? (row.qtyDisplay || smartNum(row.qty)) : ''; al = 'R'; break;
+                case 4: txt = row.rate > 0 ? (row.rateDisplay || smartNum(row.rate)) : ''; al = 'R'; break;
                 case 5: txt = row.amount > 0 ? smartNum(row.amount) : ''; al = 'R'; break;
               }
               cellText(CX[k], y, COL[k], ROW_H, txt, 'normal', 9, al);
