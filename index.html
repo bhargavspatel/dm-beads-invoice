@@ -1357,8 +1357,8 @@
     function pdfINR(n) {
       const num = Number(n) || 0;
       return 'Rs. ' + num.toLocaleString('en-IN', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1
       });
     }
 
