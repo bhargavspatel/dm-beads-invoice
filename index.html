@@ -276,19 +276,18 @@
       border-radius: 12px;
       box-shadow: 0 8px 32px rgba(26,58,107,0.22);
       z-index: 99999;
-      padding: 10px;
-      display: grid;
+      padding: 8px;
+      display: none;
       grid-template-columns: repeat(4, 1fr);
-      gap: 5px;
-      min-width: 520px;
+      gap: 4px;
     }
     .desc-dd-item {
-      padding: 8px 10px;
-      font-size: 0.82rem;
+      padding: 7px 8px;
+      font-size: 0.78rem;
       cursor: pointer;
       white-space: nowrap;
       color: var(--gray-text);
-      border-radius: 7px;
+      border-radius: 6px;
       text-align: center;
       border: 1px solid #e5eaf3;
     }
@@ -1345,9 +1344,36 @@
       document.body.appendChild(dropdown);
 
       function positionDropdown() {
-        const rect = svcInput.getBoundingClientRect();
-        dropdown.style.top  = (rect.bottom + 4) + 'px';
-        dropdown.style.left = rect.left + 'px';
+        const rect   = svcInput.getBoundingClientRect();
+        const vw     = window.innerWidth;
+        const vh     = window.innerHeight;
+        const ddW    = Math.min(560, vw - 16);   // dropdown width, capped to viewport
+        dropdown.style.width = ddW + 'px';
+
+        // horizontal: align to input left, but clamp so right edge stays in view
+        let left = rect.left;
+        if (left + ddW > vw - 8) left = vw - ddW - 8;
+        if (left < 8) left = 8;
+
+        // vertical: prefer below input; flip above if not enough room below
+        const spaceBelow = vh - rect.bottom - 8;
+        const spaceAbove = rect.top - 8;
+        dropdown.style.display = 'grid';            // need layout to measure height
+        const ddH = dropdown.offsetHeight;
+        dropdown.style.display = 'none';
+
+        let top;
+        if (ddH <= spaceBelow) {
+          top = rect.bottom + 4;                    // fits below
+        } else if (ddH <= spaceAbove) {
+          top = rect.top - ddH - 4;                 // fits above
+        } else {
+          // neither fits fully — open below and clamp bottom
+          top = Math.max(8, vh - ddH - 8);
+        }
+
+        dropdown.style.top  = top  + 'px';
+        dropdown.style.left = left + 'px';
       }
 
       function showDropdown(filter) {
