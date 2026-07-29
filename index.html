@@ -276,11 +276,36 @@
       border-radius: 12px;
       box-shadow: 0 8px 32px rgba(26,58,107,0.22);
       z-index: 99999;
-      padding: 8px;
+      padding: 10px;
       display: none;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 4px;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 280px;
     }
+    .dd-cat-row {
+      display: flex;
+      gap: 8px;
+    }
+    .dd-cat-btn {
+      flex: 1;
+      padding: 12px 8px;
+      background: var(--blue-light);
+      border: 1.5px solid var(--blue-border);
+      border-radius: 9px;
+      text-align: center;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.88rem;
+      color: var(--blue-dark);
+      user-select: none;
+    }
+    .dd-cat-btn:hover { background: var(--blue-dark); color: #fff; border-color: var(--blue-dark); }
+    .dd-cat-count { display: block; font-size: 0.7rem; font-weight: 400; opacity: 0.7; margin-top: 3px; }
+    .dd-back-row { display: flex; align-items: center; gap: 6px; padding-bottom: 6px; border-bottom: 1px solid #e5eaf3; }
+    .dd-back-btn { font-size: 0.78rem; color: var(--blue-dark); cursor: pointer; font-weight: 600; }
+    .dd-back-btn:hover { text-decoration: underline; }
+    .dd-cat-label { font-size: 0.82rem; font-weight: 700; color: var(--blue-dark); letter-spacing: 0.04em; }
+    .desc-dd-grid { display: grid; gap: 4px; }
     .desc-dd-item {
       padding: 7px 8px;
       font-size: 0.78rem;
@@ -290,8 +315,9 @@
       border-radius: 6px;
       text-align: center;
       border: 1px solid #e5eaf3;
+      user-select: none;
     }
-    .desc-dd-item:hover, .desc-dd-item.active { background: var(--blue-light); color: var(--blue-dark); font-weight: 600; border-color: var(--blue-border); }
+    .desc-dd-item:hover { background: var(--blue-light); color: var(--blue-dark); font-weight: 600; border-color: var(--blue-border); }
     .col-unit    { width: 62px; }
     .col-qty     { width: 130px; }
     .col-rate    { width: 100px; }
@@ -1212,13 +1238,17 @@
     let workspaceCode = null;
 
     // Pre-defined product catalogue for description autocomplete
-    const PRODUCTS = (function () {
-      const types = ['ROSEGOLD', 'SILVER', 'RABDI', 'GOLDEN', 'MILKY', 'BLACK', 'COLOR'];
-      const sizes = ['1.7 MM', '2 MM', '2.5 MM', '3.8 MM'];
-      const list = [];
-      types.forEach(function (t) { sizes.forEach(function (s) { list.push(t + ' ' + s); }); });
-      return list;
-    }());
+    const PRODUCT_CATEGORIES = {
+      BEADS: (function () {
+        const types = ['ROSEGOLD', 'SILVER', 'RABDI', 'GOLDEN', 'MILKY', 'BLACK', 'COLOR'];
+        const sizes = ['1.7 MM', '2 MM', '2.5 MM', '3.8 MM'];
+        const list = [];
+        types.forEach(function (t) { sizes.forEach(function (s) { list.push(t + ' ' + s); }); });
+        return list;
+      }()),
+      PAL: ['2 MM PAL', '2.5 MM PAL', '3 MM PAL', '4 MM PAL', '2.5 MM PAL COLOR', '3 MM PAL COLOR'],
+      ZARDOSI: ['4 MM ZARDOSI', '6 MM ZARDOSI', '8 MM ZARDOSI', '9 MM ZARDOSI', '12 MM ZARDOSI']
+    };
 
     // ─────────────────────────────────────────────
     // Logo: show image once loaded, else keep emoji
@@ -1344,47 +1374,28 @@
       document.body.appendChild(dropdown);
 
       function positionDropdown() {
-        const rect   = svcInput.getBoundingClientRect();
-        const vw     = window.innerWidth;
-        const vh     = window.innerHeight;
-        const ddW    = Math.min(560, vw - 16);   // dropdown width, capped to viewport
+        const rect  = svcInput.getBoundingClientRect();
+        const vw    = window.innerWidth;
+        const vh    = window.innerHeight;
+        dropdown.style.display = 'flex';
+        const ddW   = Math.min(dropdown.offsetWidth, vw - 16);
         dropdown.style.width = ddW + 'px';
-
-        // horizontal: align to input left, but clamp so right edge stays in view
         let left = rect.left;
         if (left + ddW > vw - 8) left = vw - ddW - 8;
         if (left < 8) left = 8;
-
-        // vertical: prefer below input; flip above if not enough room below
+        const ddH       = dropdown.offsetHeight;
         const spaceBelow = vh - rect.bottom - 8;
         const spaceAbove = rect.top - 8;
-        dropdown.style.display = 'grid';            // need layout to measure height
-        const ddH = dropdown.offsetHeight;
-        dropdown.style.display = 'none';
-
         let top;
-        if (ddH <= spaceBelow) {
-          top = rect.bottom + 4;                    // fits below
-        } else if (ddH <= spaceAbove) {
-          top = rect.top - ddH - 4;                 // fits above
-        } else {
-          // neither fits fully — open below and clamp bottom
-          top = Math.max(8, vh - ddH - 8);
-        }
-
+        if (ddH <= spaceBelow)       top = rect.bottom + 4;
+        else if (ddH <= spaceAbove)  top = rect.top - ddH - 4;
+        else                          top = Math.max(8, vh - ddH - 8);
         dropdown.style.top  = top  + 'px';
         dropdown.style.left = left + 'px';
+        dropdown.style.display = 'none';
       }
 
-      function showDropdown(filter) {
-        const q = (filter || '').toLowerCase();
-        const matches = q ? PRODUCTS.filter(function(p){ return p.toLowerCase().includes(q); }) : PRODUCTS;
-        if (!matches.length) { dropdown.style.display = 'none'; return; }
-        dropdown.innerHTML = matches.map(function(p){
-          return '<div class="desc-dd-item">' + p + '</div>';
-        }).join('');
-        positionDropdown();
-        dropdown.style.display = 'grid';
+      function attachItemListeners() {
         dropdown.querySelectorAll('.desc-dd-item').forEach(function(item){
           item.addEventListener('mousedown', function(e){
             e.preventDefault();
@@ -1392,6 +1403,69 @@
             dropdown.style.display = 'none';
           });
         });
+      }
+
+      function showCategoryProducts(cat) {
+        const products = PRODUCT_CATEGORIES[cat];
+        const cols = cat === 'BEADS' ? 4 : cat === 'PAL' ? 3 : 3;
+        dropdown.innerHTML =
+          '<div class="dd-back-row">' +
+            '<span class="dd-back-btn" data-action="back">&#8592;</span>' +
+            '<span class="dd-cat-label">' + cat + '</span>' +
+          '</div>' +
+          '<div class="desc-dd-grid" style="grid-template-columns:repeat(' + cols + ',1fr)">' +
+            products.map(function(p){ return '<div class="desc-dd-item">' + p + '</div>'; }).join('') +
+          '</div>';
+        positionDropdown();
+        dropdown.style.display = 'flex';
+        dropdown.querySelector('.dd-back-btn').addEventListener('mousedown', function(e){
+          e.preventDefault();
+          showCategoryScreen();
+        });
+        attachItemListeners();
+      }
+
+      function showCategoryScreen() {
+        dropdown.innerHTML =
+          '<div class="dd-cat-row">' +
+            Object.keys(PRODUCT_CATEGORIES).map(function(cat){
+              return '<div class="dd-cat-btn" data-cat="' + cat + '">' +
+                cat +
+                '<span class="dd-cat-count">' + PRODUCT_CATEGORIES[cat].length + ' items</span>' +
+              '</div>';
+            }).join('') +
+          '</div>';
+        positionDropdown();
+        dropdown.style.display = 'flex';
+        dropdown.querySelectorAll('.dd-cat-btn').forEach(function(btn){
+          btn.addEventListener('mousedown', function(e){
+            e.preventDefault();
+            showCategoryProducts(btn.dataset.cat);
+          });
+        });
+      }
+
+      function showDropdown(filter) {
+        const q = (filter || '').toLowerCase();
+        if (q) {
+          // search mode: scan all categories
+          const matches = [];
+          Object.keys(PRODUCT_CATEGORIES).forEach(function(cat){
+            PRODUCT_CATEGORIES[cat].forEach(function(p){
+              if (p.toLowerCase().includes(q)) matches.push(p);
+            });
+          });
+          if (!matches.length) { dropdown.style.display = 'none'; return; }
+          dropdown.innerHTML =
+            '<div class="desc-dd-grid" style="grid-template-columns:repeat(3,1fr)">' +
+              matches.map(function(p){ return '<div class="desc-dd-item">' + p + '</div>'; }).join('') +
+            '</div>';
+          positionDropdown();
+          dropdown.style.display = 'flex';
+          attachItemListeners();
+        } else {
+          showCategoryScreen();
+        }
       }
 
       svcInput.addEventListener('focus', function(){ showDropdown(this.value); });
