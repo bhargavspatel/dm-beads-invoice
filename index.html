@@ -1476,7 +1476,7 @@
             '<td style="' + C1 + 'text-align:center;">' + (item.unit||'') + '</td>' +
             '<td style="' + C1 + 'text-align:right;">' + (item.qty>0?(item.qtyDisplay||smartNum(item.qty)):'') + '</td>' +
             '<td style="' + C1 + 'text-align:right;">' + (item.rate>0?(item.rateDisplay||smartNum(item.rate)):'') + '</td>' +
-            '<td style="' + C1 + 'text-align:right;">' + (item.amount>0?item.amount.toFixed(2):'') + '</td>' +
+            '<td style="' + C1 + 'text-align:right;">' + (item.amount>0?item.amount.toFixed(1):'') + '</td>' +
           '</tr>';
         }).join('');
 
@@ -1541,9 +1541,9 @@
               '</td>' +
               '<td style="padding:0;vertical-align:top;">' +
                 '<table style="width:100%;border-collapse:collapse;">' +
-                  '<tr><td style="padding:7px 14px;font-size:12px;border-bottom:1px solid #ccc;">Basic Amount &nbsp;:&ndash;</td><td style="padding:7px 14px;text-align:right;font-size:12px;border-bottom:1px solid #ccc;">' + basic.toFixed(2) + '</td></tr>' +
+                  '<tr><td style="padding:7px 14px;font-size:12px;border-bottom:1px solid #ccc;">Basic Amount &nbsp;:&ndash;</td><td style="padding:7px 14px;text-align:right;font-size:12px;border-bottom:1px solid #ccc;">' + basic.toFixed(1) + '</td></tr>' +
                   '<tr><td style="padding:7px 14px;font-size:12px;border-bottom:1px solid #ccc;">Round Off &nbsp;:&ndash;</td><td style="padding:7px 14px;text-align:right;font-size:12px;border-bottom:1px solid #ccc;">' + roundOffTxt + '</td></tr>' +
-                  '<tr><td style="padding:7px 14px;font-size:13px;font-weight:700;">Total Amount &nbsp;:&ndash;</td><td style="padding:7px 14px;text-align:right;font-size:13px;font-weight:700;">' + totalAmt.toFixed(2) + '</td></tr>' +
+                  '<tr><td style="padding:7px 14px;font-size:13px;font-weight:700;">Total Amount &nbsp;:&ndash;</td><td style="padding:7px 14px;text-align:right;font-size:13px;font-weight:700;">' + totalAmt.toFixed(1) + '</td></tr>' +
                 '</table>' +
               '</td>' +
             '</tr>' +
@@ -1693,7 +1693,7 @@
             case 2:txt=row.unit||'';al='C';break;
             case 3:txt=row.qty>0?(row.qtyDisplay||smartNum(row.qty)):'';al='R';break;
             case 4:txt=row.rate>0?(row.rateDisplay||smartNum(row.rate)):'';al='R';break;
-            case 5:txt=row.amount>0?row.amount.toFixed(2):'';al='R';break;
+            case 5:txt=row.amount>0?row.amount.toFixed(1):'';al='R';break;
           } cellText(CX[k],y,COL[k],ROW_H,txt,'normal',9,al); }
         } y+=ROW_H;
       }
@@ -1704,12 +1704,12 @@
       const wl=doc.splitTextToSize(amountInWords(grandTotal),104); doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(0,0,0); doc.text(wl,ML+2,y+7);
       doc.setLineWidth(0.3); doc.line(fsx,y,fsx,y+AH*3+1);
       doc.setFont('helvetica','normal'); doc.setFontSize(9);
-      doc.text('Basic Amount  :-',fsx+3,y+AH/2+1.8); doc.text(grandTotal.toFixed(2),ML+CW-2,y+AH/2+1.8,{align:'right'});
+      doc.text('Basic Amount  :-',fsx+3,y+AH/2+1.8); doc.text(grandTotal.toFixed(1),ML+CW-2,y+AH/2+1.8,{align:'right'});
       doc.setLineWidth(0.2); doc.line(fsx,y+AH,ML+CW,y+AH);
       const rot=roundOff===0?'-':(roundOff>0?'+':'')+roundOff.toFixed(2);
       doc.text('Round Off  :-',fsx+3,y+AH+AH/2+1.8); doc.text(rot,ML+CW-2,y+AH+AH/2+1.8,{align:'right'});
       doc.line(fsx,y+AH*2,ML+CW,y+AH*2);
-      doc.setFont('helvetica','bold'); doc.text('Total Amount  :-',fsx+3,y+AH*2+AH/2+1.8); doc.text(totalAmt.toFixed(2),ML+CW-2,y+AH*2+AH/2+1.8,{align:'right'});
+      doc.setFont('helvetica','bold'); doc.text('Total Amount  :-',fsx+3,y+AH*2+AH/2+1.8); doc.text(totalAmt.toFixed(1),ML+CW-2,y+AH*2+AH/2+1.8,{align:'right'});
       y+=AH*3+1; doc.setLineWidth(0.4); doc.line(ML,y,ML+CW,y); const rH=16;
       doc.line(fsx,y,fsx,y+rH); doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.text('Remark  :-',ML+2,y+7);
       doc.setFontSize(8.5); doc.text('E&OE',ML+CW-2,y+6,{align:'right'}); doc.setFont('helvetica','bold'); doc.text('For DM BEADS',ML+CW-2,y+13,{align:'right'});
@@ -2241,7 +2241,7 @@
                 case 2: txt = row.unit || ''; al = 'C'; break;
                 case 3: txt = row.qty > 0 ? (row.qtyDisplay || smartNum(row.qty)) : ''; al = 'R'; break;
                 case 4: txt = row.rate > 0 ? (row.rateDisplay || smartNum(row.rate)) : ''; al = 'R'; break;
-                case 5: txt = row.amount > 0 ? row.amount.toFixed(2) : ''; al = 'R'; break;
+                case 5: txt = row.amount > 0 ? row.amount.toFixed(1) : ''; al = 'R'; break;
               }
               cellText(CX[k], y, COL[k], ROW_H, txt, 'normal', 9, al);
             }
@@ -2283,7 +2283,7 @@
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
         doc.text('Basic Amount  :-', footSplitX + 3, y + AMT_ROW_H/2 + 1.8);
-        doc.text(grandTotal.toFixed(2), ML + CW - 2, y + AMT_ROW_H/2 + 1.8, { align: 'right' });
+        doc.text(grandTotal.toFixed(1), ML + CW - 2, y + AMT_ROW_H/2 + 1.8, { align: 'right' });
         doc.setLineWidth(0.2);
         doc.line(footSplitX, y + AMT_ROW_H, ML + CW, y + AMT_ROW_H);
 
@@ -2296,7 +2296,7 @@
         // Total Amount
         doc.setFont('helvetica', 'bold');
         doc.text('Total Amount  :-', footSplitX + 3, y + AMT_ROW_H*2 + AMT_ROW_H/2 + 1.8);
-        doc.text(totalAmt.toFixed(2), ML + CW - 2, y + AMT_ROW_H*2 + AMT_ROW_H/2 + 1.8, { align: 'right' });
+        doc.text(totalAmt.toFixed(1), ML + CW - 2, y + AMT_ROW_H*2 + AMT_ROW_H/2 + 1.8, { align: 'right' });
 
         y += footH + 1;
 
@@ -2597,7 +2597,6 @@
             '<td class="ptbl-amt">' + fmtINR(p.grandTotal || 0) + '</td>' +
             '<td class="ptbl-actions">' +
               '<button class="btn-pay-purch"    data-idx="' + i + '">Pay</button>' +
-              (p.lineItems && p.lineItems.length ? '<button class="btn-reprint-purch" data-idx="' + i + '">&#8595; Print</button>' : '') +
               '<button class="btn-edit-purch"   data-idx="' + i + '">Edit</button>' +
               '<button class="btn-del-purch"    data-idx="' + i + '">Del</button>' +
             '</td>' +
