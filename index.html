@@ -1012,8 +1012,7 @@
         <img src="https://i.ibb.co/TBZ8VV4J/Whats-App-Image-2026-07-29-at-00-22-47.jpg" alt="Logo" />
       </div>
       <h2>GST Invoice Generator</h2>
-      <p>Enter your 4-digit PIN to open your data.<br>
-         First time? Pick any 4 digits — use the same PIN on every device.</p>
+      <p>Enter your 4-digit PIN to open your workspace.</p>
       <div class="field">
         <label for="code-input">4-Digit PIN</label>
         <input type="text" id="code-input" placeholder="••••"
@@ -2769,32 +2768,43 @@
     });
 
     // ─────────────────────────────────────────────
-    // Workspace unlock — secret code gate
     // ─────────────────────────────────────────────
+    // Workspace unlock — fixed PIN gate
+    // ─────────────────────────────────────────────
+    const CORRECT_PIN = '2901';
+
     function unlock() {
       const input = document.getElementById('code-input');
       const code  = input.value.trim();
-      // Must be exactly 4 digits
+
       if (!/^\d{4}$/.test(code)) {
         input.style.borderColor = '#ef4444';
         input.focus();
         return;
       }
-      input.style.borderColor = '';
 
-      workspaceCode = code;
-      // Remember for this browser session so a page-refresh doesn't re-ask
-      sessionStorage.setItem('gst_workspace_code', code);
+      if (code !== CORRECT_PIN) {
+        input.style.borderColor = '#ef4444';
+        input.value = '';
+        input.placeholder = 'Wrong PIN, try again';
+        input.focus();
+        return;
+      }
+
+      input.style.borderColor = '';
+      input.placeholder = '••••';
+      workspaceCode = CORRECT_PIN;
+      sessionStorage.setItem('gst_workspace_code', CORRECT_PIN);
 
       document.getElementById('lock-screen').style.display = 'none';
       document.getElementById('main-app').style.display    = 'block';
       loadClients();
     }
 
-    // If the code was already entered this session, skip the lock screen
+    // If already unlocked this session, skip the lock screen
     const _saved = sessionStorage.getItem('gst_workspace_code');
-    if (_saved) {
-      workspaceCode = _saved;
+    if (_saved === CORRECT_PIN) {
+      workspaceCode = CORRECT_PIN;
       document.getElementById('lock-screen').style.display = 'none';
       document.getElementById('main-app').style.display    = 'block';
       loadClients();
