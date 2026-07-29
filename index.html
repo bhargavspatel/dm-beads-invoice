@@ -1518,6 +1518,20 @@
       document.body.removeChild(a);
     }
 
+    function showToast(message) {
+      const prev = document.getElementById('app-toast');
+      if (prev) prev.remove();
+      const t = document.createElement('div');
+      t.id = 'app-toast';
+      t.style.cssText = 'position:fixed;bottom:28px;left:50%;transform:translateX(-50%);' +
+        'background:#1a3a6b;color:#fff;padding:13px 22px;border-radius:10px;font-size:0.86rem;' +
+        'font-weight:600;z-index:99999;box-shadow:0 4px 24px rgba(0,0,0,0.35);max-width:88vw;' +
+        'text-align:center;line-height:1.45;transition:opacity 0.35s;';
+      t.textContent = message;
+      document.body.appendChild(t);
+      setTimeout(function () { t.style.opacity = '0'; setTimeout(function () { if (t.parentNode) t.remove(); }, 380); }, 5000);
+    }
+
     function showPDFModal(doc, filename, whatsappURL, title, billData) {
       const existing = document.getElementById('pdf-modal-overlay');
       if (existing) existing.remove();
@@ -1577,7 +1591,25 @@
         doc.save(filename);
       });
 
-      overlay.querySelector('.btn-modal-whatsapp').addEventListener('click', function () {
+      const waBtn = overlay.querySelector('.btn-modal-whatsapp');
+      waBtn.addEventListener('click', async function () {
+        // Try to copy bill image to clipboard so user can paste in WhatsApp
+        if (billData && typeof ClipboardItem !== 'undefined' && navigator.clipboard && navigator.clipboard.write) {
+          const origHTML = waBtn.innerHTML;
+          waBtn.disabled = true;
+          waBtn.textContent = 'Copying image…';
+          try {
+            const canvas = await generateBillImage(billData);
+            const blob   = await new Promise(function (res) { canvas.toBlob(res, 'image/png'); });
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+            showToast('Bill image copied! Open WhatsApp, tap the message box, then paste (Ctrl+V or long-press → Paste).');
+          } catch (e) {
+            // Clipboard not permitted — proceed silently
+          } finally {
+            waBtn.disabled  = false;
+            waBtn.innerHTML = origHTML;
+          }
+        }
         window.open(whatsappURL, '_blank', 'noopener');
       });
 
