@@ -1,0 +1,2209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DM BEADS – Sale Invoice</title>
+
+  <!-- jsPDF — PDF generation library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <!-- Supabase JS client — cloud ledger storage -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Palette ── */
+    :root {
+      --blue-dark:   #1a3a6b;
+      --blue-mid:    #2563eb;
+      --blue-light:  #dbeafe;
+      --blue-border: #93c5fd;
+      --white:       #ffffff;
+      --gray-text:   #374151;
+      --gray-muted:  #6b7280;
+      --gray-bg:     #eef2f7;   /* cooler, slightly blue-tinted page bg */
+      --shadow-sm:   0 1px 3px rgba(0,0,0,0.07), 0 2px 8px rgba(26,58,107,0.06);
+    }
+
+  <style>
+    /* ── Base ── */
+    body {
+      font-family: -apple-system, 'Segoe UI', Arial, sans-serif;
+      background: var(--gray-bg);
+      color: var(--gray-text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--blue-dark);
+      color: var(--white);
+      padding: 0 20px;
+      height: 76px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      box-shadow: 0 2px 10px rgba(26,58,107,0.35);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    header .logo {
+      width: 58px;
+      height: 58px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    header .logo img            { width: 100%; height: 100%; object-fit: contain; display: none; }
+    header .logo .logo-fallback { font-size: 28px; line-height: 1; color: var(--white); }
+
+    header h1 {
+      font-size: 1.45rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    /* ── Seller fixed display ── */
+    .seller-info-name {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--blue-dark);
+      margin-bottom: 6px;
+    }
+
+    .seller-info-addr {
+      font-size: 0.82rem;
+      color: var(--gray-muted);
+      line-height: 1.55;
+    }
+
+    /* ── Main layout ── */
+    main {
+      max-width: 1280px;
+      margin: 24px auto;
+      padding: 0 16px 60px;
+    }
+
+    @media (max-width: 640px) {
+      main { margin: 14px auto; padding: 0 12px 48px; }
+    }
+
+    .app-grid {
+      display: grid;
+      grid-template-columns: 1fr 370px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    @media (max-width: 960px) {
+      .app-grid { grid-template-columns: 1fr; gap: 16px; }
+    }
+
+    .col-invoice {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    /* On desktop the ledger sticks under the header so the client list
+       stays visible while the long invoice form scrolls past it.        */
+    .col-ledger {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      position: sticky;
+      top: 92px;
+      max-height: calc(100vh - 108px);
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--blue-border) transparent;
+    }
+
+    @media (max-width: 960px) {
+      .col-ledger { position: static; max-height: none; overflow-y: visible; }
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--white);
+      border: 1px solid #d9e6f7;
+      border-radius: 12px;
+      padding: 18px 20px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .card-title {
+      font-size: 0.67rem;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--blue-mid);
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--blue-light);
+    }
+
+    /* ── Two-column grid Seller / Client ── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 560px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* ── Form fields ── */
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin-bottom: 12px;
+    }
+
+    .field:last-child { margin-bottom: 0; }
+
+    label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--gray-muted);
+      letter-spacing: 0.01em;
+    }
+
+    label .opt { font-weight: 400; font-style: italic; color: #9ca3af; }
+
+    input[type="text"],
+    input[type="number"],
+    textarea,
+    select {
+      border: 1px solid var(--blue-border);
+      border-radius: 7px;
+      padding: 9px 11px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      color: var(--gray-text);
+      background: var(--white);
+      width: 100%;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    /* Prevent iOS Safari from zooming in on focused inputs (needs ≥ 16px) */
+    @media (max-width: 640px) {
+      input[type="text"],
+      input[type="number"],
+      textarea,
+      select { font-size: 16px; }
+    }
+
+    input[type="text"]:focus,
+    input[type="number"]:focus,
+    textarea:focus,
+    select:focus {
+      outline: none;
+      border-color: var(--blue-mid);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.14);
+    }
+
+    input[readonly] {
+      background: var(--blue-light);
+      color: var(--blue-dark);
+      font-weight: 600;
+      cursor: default;
+    }
+
+    textarea { resize: vertical; min-height: 66px; }
+
+    /* Invoice meta row: number + date side by side */
+    .meta-row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .meta-row .field { flex: 1; min-width: 155px; margin-bottom: 0; }
+
+    /* ── Line-items table ── */
+    .items-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    table.items {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+
+    table.items thead tr { background: var(--blue-light); }
+
+    table.items th {
+      padding: 9px 8px;
+      text-align: left;
+      font-size: 0.69rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--blue-dark);
+      border-bottom: 2px solid var(--blue-border);
+      white-space: nowrap;
+    }
+
+    table.items td {
+      padding: 7px 8px;
+      border-bottom: 1px solid #edf1f7;
+      vertical-align: middle;
+    }
+
+    table.items tbody tr:last-child td { border-bottom: none; }
+
+    .col-service { min-width: 155px; }
+    .col-qty     { width: 66px; }
+    .col-rate    { width: 100px; }
+    .col-amount  { width: 110px; }
+    .col-del     { width: 42px; text-align: center; }
+
+    table.items input { margin: 0; }
+
+    .amount-cell {
+      background: var(--blue-light);
+      border-radius: 5px;
+      padding: 7px 9px;
+      font-weight: 600;
+      color: var(--blue-dark);
+      white-space: nowrap;
+      font-size: 0.84rem;
+    }
+
+    /* Line-item delete button — 36 × 36 px tap target */
+    .btn-del-row {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #ef4444;
+      font-size: 1rem;
+      border-radius: 6px;
+      transition: background 0.15s;
+    }
+
+    .btn-del-row:hover            { background: #fee2e2; }
+    .btn-del-row:disabled         { color: #d1d5db; cursor: default; }
+    .btn-del-row:disabled:hover   { background: none; }
+
+    /* Add Row button */
+    .btn-add-row {
+      margin-top: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 18px;
+      min-height: 40px;
+      border: 1.5px dashed var(--blue-mid);
+      border-radius: 7px;
+      background: none;
+      color: var(--blue-mid);
+      font-size: 0.84rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-add-row:hover { background: var(--blue-light); }
+
+    /* ── GST row ── */
+    .gst-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .gst-row label { font-size: 0.85rem; font-weight: 600; color: var(--gray-text); }
+    .gst-row select { width: auto; min-width: 90px; }
+
+    /* ── Totals summary panel ── */
+    .totals-section {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--blue-light);
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .totals-table { border-collapse: collapse; min-width: 260px; }
+
+    @media (max-width: 400px) {
+      .totals-section { justify-content: stretch; }
+      .totals-table   { width: 100%; min-width: 0; }
+    }
+
+    .totals-table td { padding: 5px 8px; font-size: 0.9rem; }
+
+    .totals-table .tot-label {
+      color: var(--gray-muted);
+      text-align: right;
+      padding-right: 20px;
+      white-space: nowrap;
+    }
+
+    .totals-table .tot-value {
+      text-align: right;
+      font-weight: 600;
+      white-space: nowrap;
+      min-width: 120px;
+    }
+
+    .totals-table tr.grand-row td {
+      padding-top: 10px;
+      border-top: 2px solid var(--blue-border);
+    }
+
+    .totals-table .grand-label {
+      text-align: right;
+      padding-right: 20px;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--blue-dark);
+      white-space: nowrap;
+    }
+
+    .totals-table .grand-value {
+      text-align: right;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--blue-dark);
+      white-space: nowrap;
+      background: var(--blue-light);
+      border-radius: 6px;
+      padding: 6px 10px;
+    }
+
+    /* ── Action buttons (Save to Ledger + Download PDF) ── */
+    .btn-save-ledger {
+      width: 100%;
+      padding: 14px;
+      min-height: 50px;
+      background: #16a34a;
+      color: #fff;
+      border: none;
+      border-radius: 9px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-save-ledger:hover    { background: #15803d; }
+    .btn-save-ledger:disabled { background: #9ca3af; cursor: default; }
+
+    .btn-pdf {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 13px;
+      min-height: 48px;
+      background: var(--blue-dark);
+      color: var(--white);
+      border: none;
+      border-radius: 9px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-pdf:hover    { background: var(--blue-mid); }
+    .btn-pdf:disabled { background: #9ca3af; cursor: default; }
+
+    /* ── CDN status badges ── */
+    .lib-status { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .badge {
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+
+    .badge.ok  { background: #d1fae5; color: #065f46; }
+    .badge.err { background: #fee2e2; color: #991b1b; }
+
+    /* ── Lock / PIN screen ── */
+    #lock-screen {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(150deg, #dbeafe 0%, #eef2f7 60%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      padding: 20px;
+    }
+
+    .lock-card {
+      background: var(--white);
+      border: 1px solid #d9e6f7;
+      border-radius: 18px;
+      padding: 40px 36px 32px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 8px 48px rgba(26,58,107,0.16);
+    }
+
+    @media (max-width: 440px) { .lock-card { padding: 32px 22px 28px; } }
+
+    .lock-logo-wrap {
+      width: 70px;
+      height: 70px;
+      border-radius: 14px;
+      background: var(--blue-dark);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      overflow: hidden;
+    }
+
+    .lock-logo-wrap img { width: 100%; height: 100%; object-fit: contain; }
+
+    .lock-card h2 { font-size: 1.25rem; font-weight: 700; color: var(--blue-dark); margin-bottom: 8px; }
+
+    .lock-card p {
+      font-size: 0.84rem;
+      color: var(--gray-muted);
+      line-height: 1.55;
+      margin-bottom: 24px;
+    }
+
+    .lock-card .field { text-align: left; margin-bottom: 16px; }
+
+    .btn-open {
+      width: 100%;
+      padding: 13px;
+      min-height: 50px;
+      background: var(--blue-dark);
+      color: var(--white);
+      border: none;
+      border-radius: 9px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-open:hover { background: var(--blue-mid); }
+
+    .lock-hint {
+      font-size: 0.74rem !important;
+      color: #9ca3af !important;
+      margin-top: 16px !important;
+      margin-bottom: 0 !important;
+    }
+
+    /* ── Ledger panel ── */
+    .ledger-panel { padding: 14px 16px; }
+
+    .client-search-wrap { margin-bottom: 10px; }
+
+    .client-list { display: flex; flex-direction: column; gap: 2px; }
+
+    /* Client rows — 52 px min-height makes them easy to tap on mobile */
+    .client-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 11px 12px;
+      min-height: 52px;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: background 0.12s, border-color 0.12s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .client-item:hover  { background: var(--blue-light); border-color: var(--blue-border); }
+    .client-item.active { background: var(--blue-light); border-color: var(--blue-mid); }
+
+    .ci-name   { font-weight: 600; font-size: 0.88rem; color: var(--gray-text); }
+    .ci-phone  { font-size: 0.74rem; color: var(--gray-muted); margin-top: 2px; }
+    .ci-amount { font-weight: 700; color: var(--blue-dark); font-size: 0.88rem; white-space: nowrap; margin-left: 10px; }
+
+    .ledger-empty {
+      text-align: center;
+      padding: 24px 8px;
+      font-size: 0.84rem;
+      color: var(--gray-muted);
+      line-height: 1.55;
+    }
+
+    /* ── Client detail ── */
+    .detail-back {
+      background: none;
+      border: none;
+      color: var(--blue-mid);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 4px 0 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      min-height: 36px;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .detail-back:hover { text-decoration: underline; }
+
+    .detail-name { font-size: 1rem; font-weight: 700; color: var(--blue-dark); }
+    .detail-sub  { font-size: 0.75rem; color: var(--gray-muted); margin-top: 3px; margin-bottom: 12px; }
+
+    table.purchase-tbl { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+
+    table.purchase-tbl th {
+      padding: 6px 7px;
+      font-size: 0.67rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--blue-dark);
+      background: var(--blue-light);
+      border-bottom: 1px solid var(--blue-border);
+      text-align: left;
+    }
+
+    table.purchase-tbl th:last-child { text-align: right; }
+
+    table.purchase-tbl td {
+      padding: 10px 7px;      /* taller rows for easier reading & tapping */
+      border-bottom: 1px solid #eef2f7;
+      color: var(--gray-text);
+    }
+
+    table.purchase-tbl tr:last-child td { border-bottom: none; }
+
+    .ptbl-amt { text-align: right; font-weight: 600; color: var(--blue-dark); white-space: nowrap; }
+
+    .detail-total {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 7px 0;
+      margin-top: 4px;
+      border-top: 2px solid var(--blue-border);
+      font-weight: 700;
+      font-size: 0.92rem;
+      color: var(--blue-dark);
+    }
+
+    /* ── Per-purchase Edit / Delete buttons ── */
+    .ptbl-actions { white-space: nowrap; text-align: right; }
+
+    .btn-edit-purch, .btn-del-purch {
+      border: none;
+      border-radius: 5px;
+      padding: 6px 10px;
+      min-height: 32px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.12s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-edit-purch       { background: var(--blue-light); color: var(--blue-dark); margin-right: 4px; }
+    .btn-edit-purch:hover { background: var(--blue-border); }
+    .btn-del-purch        { background: #fee2e2; color: #b91c1c; }
+    .btn-del-purch:hover  { background: #fecaca; }
+
+    .btn-del-purch:disabled,
+    .btn-edit-purch:disabled { opacity: 0.45; cursor: default; }
+
+    /* Inline edit cells */
+    .edit-cell input {
+      width: 100%;
+      font-size: 0.82rem;
+      padding: 5px 6px;
+      border: 1px solid var(--blue-border);
+      border-radius: 5px;
+      font-family: inherit;
+    }
+
+    .edit-cell input:focus {
+      outline: none;
+      border-color: var(--blue-mid);
+      box-shadow: 0 0 0 2px rgba(37,99,235,0.13);
+    }
+
+    .btn-save-edit, .btn-cancel-edit {
+      border: none;
+      border-radius: 5px;
+      padding: 6px 10px;
+      min-height: 32px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-save-edit          { background: #16a34a; color: #fff; margin-right: 4px; }
+    .btn-save-edit:hover    { background: #15803d; }
+    .btn-save-edit:disabled { opacity: 0.45; cursor: default; }
+    .btn-cancel-edit        { background: #e5e7eb; color: var(--gray-text); }
+    .btn-cancel-edit:hover  { background: #d1d5db; }
+
+    /* Clear Payment button */
+    .btn-clear-payment {
+      width: 100%;
+      margin-top: 16px;
+      padding: 11px;
+      min-height: 46px;
+      background: #fff;
+      color: #dc2626;
+      border: 1.5px solid #fca5a5;
+      border-radius: 8px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-clear-payment:hover    { background: #fee2e2; border-color: #ef4444; }
+    .btn-clear-payment:disabled { opacity: 0.5; cursor: default; }
+
+    /* ── Billing summary: 3 stat blocks ── */
+    .billing-summary {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+      padding: 12px 0 14px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--blue-light);
+    }
+
+    .billing-stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 3px;
+      padding: 8px 4px;
+      border-radius: 8px;
+      background: var(--gray-bg);
+    }
+
+    .bs-label {
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--gray-muted);
+    }
+
+    .bs-amount {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--blue-dark);
+      white-space: nowrap;
+    }
+
+    .bs-amount.paid      { color: #16a34a; }
+    .bs-amount.remaining { color: #dc2626; }
+    .bs-amount.settled   { color: #16a34a; } /* remaining = 0 */
+
+    /* ── Record payment ── */
+    .payment-section-title {
+      font-size: 0.67rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--blue-mid);
+      margin-bottom: 7px;
+    }
+
+    .payment-input-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .payment-input-row input { flex: 1; min-width: 0; }
+
+    .btn-record {
+      flex-shrink: 0;
+      padding: 9px 14px;
+      min-height: 42px;
+      background: #16a34a;
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-record:hover    { background: #15803d; }
+    .btn-record:disabled { background: #9ca3af; cursor: default; }
+
+    /* ── Payment history ── */
+    .payment-hist-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 4px;
+      border-bottom: 1px solid #eef2f7;
+      font-size: 0.82rem;
+      gap: 6px;
+    }
+
+    .payment-hist-item:last-child { border-bottom: none; }
+
+    .phi-left  { display: flex; flex-direction: column; gap: 1px; }
+    .phi-date  { font-size: 0.72rem; color: var(--gray-muted); }
+    .phi-amt   { font-weight: 600; color: #16a34a; }
+
+    .btn-del-payment {
+      flex-shrink: 0;
+      border: none;
+      background: none;
+      color: #ef4444;
+      cursor: pointer;
+      font-size: 0.7rem;
+      padding: 4px 6px;
+      border-radius: 4px;
+      opacity: 0.55;
+      transition: opacity 0.12s, background 0.12s;
+      min-height: 28px;
+      white-space: nowrap;
+    }
+
+    .btn-del-payment:hover    { opacity: 1; background: #fee2e2; }
+    .btn-del-payment:disabled { opacity: 0.3; cursor: default; }
+
+    .phi-actions {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+
+    .btn-receipt {
+      flex-shrink: 0;
+      border: 1px solid var(--blue-border);
+      background: var(--blue-light);
+      color: var(--blue-dark);
+      cursor: pointer;
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 4px 7px;
+      border-radius: 4px;
+      transition: background 0.12s, border-color 0.12s;
+      min-height: 28px;
+      white-space: nowrap;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-receipt:hover    { background: var(--blue-border); border-color: var(--blue-mid); }
+    .btn-receipt:disabled { opacity: 0.4; cursor: default; }
+
+    .btn-pay-purch {
+      padding: 3px 8px;
+      border: none;
+      border-radius: 5px;
+      background: #16a34a;
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-pay-purch:hover    { background: #15803d; }
+    .btn-pay-purch:disabled { background: #9ca3af; cursor: default; }
+
+    /* ── Purchases subsection label ── */
+    .purchases-section-title {
+      font-size: 0.67rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--blue-mid);
+      margin: 14px 0 7px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <header>
+    <div class="logo">
+      <img id="logo-img" src="https://i.ibb.co/TBZ8VV4J/Whats-App-Image-2026-07-29-at-00-22-47.jpg" alt="DM BEADS" />
+      <span class="logo-fallback" id="logo-fallback">&#x1F4CB;</span>
+    </div>
+    <h1>SALE INVOICE</h1>
+  </header>
+
+  <!-- ── Lock screen — covers everything until code is entered ── -->
+  <div id="lock-screen">
+    <div class="lock-card">
+      <div class="lock-logo-wrap">
+        <img src="https://i.ibb.co/TBZ8VV4J/Whats-App-Image-2026-07-29-at-00-22-47.jpg" alt="Logo" />
+      </div>
+      <h2>GST Invoice Generator</h2>
+      <p>Enter your 4-digit PIN to open your data.<br>
+         First time? Pick any 4 digits — use the same PIN on every device.</p>
+      <div class="field">
+        <label for="code-input">4-Digit PIN</label>
+        <input type="text" id="code-input" placeholder="••••"
+               maxlength="4" inputmode="numeric" pattern="[0-9]{4}"
+               autocomplete="off" autocorrect="off" spellcheck="false"
+               style="letter-spacing:0.3em; font-size:1.4rem; text-align:center;" />
+      </div>
+      <button class="btn-open" id="btn-open" type="button">Open My Workspace</button>
+      <p class="lock-hint">&#128274; The code is the only lock — keep it private.</p>
+    </div>
+  </div>
+
+  <!-- ── Main app — hidden until workspace code is entered ── -->
+  <main id="main-app" style="display:none;">
+  <div class="app-grid">
+
+  <!-- ════════════ LEFT: Invoice form ════════════ -->
+  <div class="col-invoice">
+
+    <!-- 1. Invoice meta: number + date -->
+    <div class="card">
+      <div class="card-title">Invoice Details</div>
+      <div class="meta-row">
+        <div class="field">
+          <label>Invoice Number</label>
+          <!-- Read-only; JS fills this from the stored counter -->
+          <input type="text" id="inv-number" readonly />
+        </div>
+        <div class="field">
+          <label>Invoice Date <span class="opt">(DD/MM/YYYY)</span></label>
+          <input type="text" id="inv-date" placeholder="DD/MM/YYYY" maxlength="10" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Seller + Client details (two columns on desktop) -->
+    <div class="two-col">
+
+      <!-- Seller — fixed, not editable -->
+      <div class="card">
+        <div class="card-title">Seller</div>
+        <div class="seller-info-name">DM BEADS</div>
+        <div class="seller-info-addr">VAIKUTH DHAM SOCIETY, HATHI MANDIR ROAD, KATARGAM</div>
+      </div>
+
+      <!-- Client -->
+      <div class="card">
+        <div class="card-title">Client Details</div>
+        <div class="field">
+          <label>Client Name</label>
+          <input type="text" id="client-name" placeholder="e.g. Ramesh Traders" />
+        </div>
+        <div class="field">
+          <label>Phone Number <span class="opt">(unique client ID)</span></label>
+          <input type="text" id="client-phone" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric" />
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 3. Line items -->
+    <div class="card">
+      <div class="card-title">Line Items</div>
+      <div class="items-wrap">
+        <table class="items" id="items-table">
+          <thead>
+            <tr>
+              <th class="col-service">Service / Description</th>
+              <th class="col-qty">Qty</th>
+              <th class="col-rate">Rate (&#8377;)</th>
+              <th class="col-amount">Amount (&#8377;)</th>
+              <th class="col-del"></th>
+            </tr>
+          </thead>
+          <tbody id="items-body">
+            <!-- rows injected by JS -->
+          </tbody>
+        </table>
+      </div>
+      <button class="btn-add-row" id="btn-add-row" type="button">&#43; Add Row</button>
+    </div>
+
+    <!-- 4. Actions: Save to Ledger + Download PDF -->
+    <div class="card" style="display:flex;flex-direction:column;gap:10px;">
+      <button class="btn-save-ledger" id="btn-save-ledger" type="button">
+        &#8679; Save to Ledger
+      </button>
+      <button class="btn-pdf" id="btn-pdf" type="button">
+        &#8595; Download PDF Invoice
+      </button>
+    </div>
+
+  </div><!-- /col-invoice -->
+
+  <!-- ════════════ RIGHT: Ledger panel ════════════ -->
+  <div class="col-ledger">
+    <div class="card ledger-panel">
+      <div class="card-title">Clients &amp; Outstanding</div>
+
+      <!-- Search box -->
+      <div class="client-search-wrap" id="client-search-wrap">
+        <input type="text" id="client-search"
+               placeholder="Search by name or phone…"
+               autocomplete="off" />
+      </div>
+
+      <!-- Flat client list -->
+      <div class="client-list" id="client-list">
+        <div class="ledger-empty">Enter your workspace code to load clients.</div>
+      </div>
+
+      <!-- Client detail (shown when a client is selected) -->
+      <div id="client-detail" style="display:none;"></div>
+    </div>
+  </div><!-- /col-ledger -->
+
+  </div><!-- /app-grid -->
+  </main>
+
+  <script>
+    // ─────────────────────────────────────────────
+    // Supabase — credentials + client
+    // ─────────────────────────────────────────────
+    const SUPABASE_URL      = 'https://ocqlrzpxinwborfckzlq.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jcWxyenB4aW53Ym9yZmNremxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyODkxOTQsImV4cCI6MjEwMDg2NTE5NH0.1ioSdMusgTybTQ16PWjhH9bOtKSjrdryd5T_MdgDSCc';
+
+    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Active workspace code — set after the user enters their secret code.
+    // Every Supabase read/write filters rows by this value.
+    let workspaceCode = null;
+
+    // ─────────────────────────────────────────────
+    // Logo: show image once loaded, else keep emoji
+    // ─────────────────────────────────────────────
+    const logoImg = document.getElementById('logo-img');
+    function showLogo() {
+      logoImg.style.display = 'block';
+      document.getElementById('logo-fallback').style.display = 'none';
+    }
+    if (logoImg.complete && logoImg.naturalWidth > 0) {
+      showLogo();
+    } else {
+      logoImg.addEventListener('load',  showLogo);
+      logoImg.addEventListener('error', function () { /* keep emoji */ });
+    }
+
+    // (CDN libraries loaded via script tags above)
+
+    // ─────────────────────────────────────────────
+    // Indian financial year helper
+    // FY = April 1 of year Y to March 31 of year Y+1
+    // Returns e.g. "2025-26"
+    // ─────────────────────────────────────────────
+    function getFinancialYear() {
+      const now = new Date();
+      const y   = now.getFullYear();
+      const m   = now.getMonth(); // 0 = Jan … 3 = Apr
+      const startYear = m >= 3 ? y : y - 1;  // April (m=3) starts new FY
+      return `${startYear}-${String(startYear + 1).slice(-2)}`;
+    }
+
+    // ─────────────────────────────────────────────
+    // Invoice number
+    // Counter stored in localStorage per FY so it
+    // survives page refreshes. The actual increment
+    // happens only when "Save to Ledger" is clicked
+    // (that will be wired in the next step). For
+    // now we show what the next number WILL be.
+    // ─────────────────────────────────────────────
+    function peekInvoiceNumber() {
+      const fy  = getFinancialYear();
+      const key = `inv_counter_${fy}`;
+      const n   = parseInt(localStorage.getItem(key) || '0') + 1;
+      return `INV-${fy}-${String(n).padStart(3, '0')}`;
+    }
+
+    document.getElementById('inv-number').value = peekInvoiceNumber();
+
+    // ─────────────────────────────────────────────
+    // Today's date in DD/MM/YYYY
+    // ─────────────────────────────────────────────
+    function todayDDMMYYYY() {
+      const d  = new Date();
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      return `${dd}/${mm}/${d.getFullYear()}`;
+    }
+
+    document.getElementById('inv-date').value = todayDDMMYYYY();
+
+    // Auto-insert slashes as the user types the date (e.g. 011 → 01/1)
+    document.getElementById('inv-date').addEventListener('input', function () {
+      let v = this.value.replace(/\D/g, '').slice(0, 8); // digits only, max 8
+      if (v.length > 4) v = v.slice(0,2) + '/' + v.slice(2,4) + '/' + v.slice(4);
+      else if (v.length > 2) v = v.slice(0,2) + '/' + v.slice(2);
+      this.value = v;
+    });
+
+    // ─────────────────────────────────────────────
+    // Indian rupee formatter — always returns ₹ string
+    // e.g. fmtINR(100000) → "₹1,00,000.00"
+    // Indian grouping: last 3 digits, then groups of 2
+    // ─────────────────────────────────────────────
+    function fmtINR(n) {
+      const num = Number(n);
+      if (isNaN(num)) return '₹0.00';
+      return '₹' + num.toLocaleString('en-IN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    }
+
+    function recalcTotals() { /* totals display removed; amounts shown per-row */ }
+
+    // ─────────────────────────────────────────────
+    // Line items
+    // ─────────────────────────────────────────────
+    const tbody = document.getElementById('items-body');
+
+    // Build one table row and return the <tr> element
+    function createItemRow() {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="col-service">
+          <input type="text" class="item-service" placeholder="Service or product description" />
+        </td>
+        <td class="col-qty">
+          <input type="number" class="item-qty" placeholder="1" min="0" step="any" />
+        </td>
+        <td class="col-rate">
+          <input type="number" class="item-rate" placeholder="0.00" min="0" step="any" />
+        </td>
+        <td class="col-amount">
+          <div class="amount-cell item-amount">—</div>
+        </td>
+        <td class="col-del">
+          <button class="btn-del-row" type="button" title="Remove row">&#x2715;</button>
+        </td>
+      `;
+
+      const qtyInput  = tr.querySelector('.item-qty');
+      const rateInput = tr.querySelector('.item-rate');
+      const amountDiv = tr.querySelector('.item-amount');
+
+      // Amount = Qty × Rate; then roll up to totals
+      function recalcAmount() {
+        const qty  = parseFloat(qtyInput.value)  || 0;
+        const rate = parseFloat(rateInput.value) || 0;
+        const amt  = qty * rate;
+        amountDiv.textContent = amt > 0 ? fmtINR(amt) : '—';
+        recalcTotals();
+      }
+
+      qtyInput.addEventListener('input',  recalcAmount);
+      rateInput.addEventListener('input', recalcAmount);
+
+      // Delete this row; keep at least one row in the table
+      tr.querySelector('.btn-del-row').addEventListener('click', function () {
+        if (tbody.rows.length > 1) {
+          tr.remove();
+          refreshDelButtons();
+          recalcTotals();
+        }
+      });
+
+      return tr;
+    }
+
+    // Disable the delete button when only one row remains
+    function refreshDelButtons() {
+      const btns = tbody.querySelectorAll('.btn-del-row');
+      btns.forEach(function (b) { b.disabled = btns.length === 1; });
+    }
+
+    function addRow() {
+      tbody.appendChild(createItemRow());
+      refreshDelButtons();
+      recalcTotals();
+    }
+
+    document.getElementById('btn-add-row').addEventListener('click', addRow);
+
+    // Initial row on page load
+    addRow();
+
+    // ─────────────────────────────────────────────
+    // PDF generation
+    // ─────────────────────────────────────────────
+
+    // Paste your logo image URL here (any publicly accessible PNG/JPG/WebP).
+    // Leave as empty string to skip the logo and show business name only.
+    const LOGO_URL = 'https://i.ibb.co/TBZ8VV4J/Whats-App-Image-2026-07-29-at-00-22-47.jpg';
+
+    // jsPDF's built-in Helvetica font lacks the ₹ glyph (U+20B9), so we
+    // write "Rs." in the PDF while keeping ₹ on the web page.
+    function pdfINR(n) {
+      const num = Number(n) || 0;
+      return 'Rs. ' + num.toLocaleString('en-IN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    }
+
+    // Load an image URL and return a base64 data-URL via a canvas, or null
+    // if loading fails. The PDF function awaits this before drawing.
+    function loadImageAsBase64(url) {
+      return new Promise(function (resolve) {
+        if (!url) return resolve(null);
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function () {
+          const canvas = document.createElement('canvas');
+          canvas.width  = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          canvas.getContext('2d').drawImage(img, 0, 0);
+          try { resolve(canvas.toDataURL('image/png')); }
+          catch (e) { resolve(null); } // tainted canvas (CORS)
+        };
+        img.onerror = function () { resolve(null); };
+        img.src = url;
+      });
+    }
+
+    // ─────────────────────────────────────────────
+    // Payment receipt PDF
+    // ─────────────────────────────────────────────
+    async function generateReceiptPDF(client, payment, remainingAfter) {
+      const { jsPDF } = window.jspdf;
+      const PW = 210, PH = 297;
+      const ML = 15, MR = 15;
+      const CW = PW - ML - MR;
+
+      const C = {
+        blueDark:   [26,  58,  107],
+        blueMid:    [37,  99,  235],
+        blueLight:  [219, 234, 254],
+        green:      [22,  163, 74],
+        greenLight: [220, 252, 231],
+        white:      [255, 255, 255],
+        grayText:   [55,  65,  81],
+        grayMuted:  [107, 114, 128],
+        lineGray:   [209, 213, 219],
+      };
+
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+      function fill(c)   { doc.setFillColor(...c); }
+      function draw(c)   { doc.setDrawColor(...c); }
+      function tcolor(c) { doc.setTextColor(...c); }
+
+      const logoData = await loadImageAsBase64(LOGO_URL);
+
+      // ── Header band ──
+      const bandH = 52;
+      fill(C.blueDark);
+      doc.rect(0, 0, PW, bandH, 'F');
+
+      if (logoData) {
+        const logoSize = 36;
+        doc.addImage(logoData, 'PNG', (PW - logoSize) / 2, 5, logoSize, logoSize);
+      } else {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        tcolor(C.white);
+        doc.text('DM BEADS', PW / 2, 22, { align: 'center' });
+      }
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      tcolor(C.white);
+      doc.text('PAYMENT RECEIPT', PW / 2, bandH - 5, { align: 'center' });
+
+      let y = bandH + 10;
+
+      // ── "Received from" bar ──
+      fill(C.blueLight);
+      doc.rect(ML, y - 5, CW, 13, 'F');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      tcolor(C.grayMuted);
+      doc.text('Received from:', ML + 3, y + 3);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10.5);
+      tcolor(C.blueDark);
+      doc.text(client.name || client.phone, ML + 35, y + 3);
+      y += 16;
+
+      // ── Big amount box ──
+      fill(C.greenLight);
+      draw(C.green);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(ML, y, CW, 30, 3, 3, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      tcolor(C.green);
+      doc.text('AMOUNT PAID', PW / 2, y + 9, { align: 'center' });
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(26);
+      tcolor(C.green);
+      doc.text(pdfINR(payment.amount || 0), PW / 2, y + 23, { align: 'center' });
+      y += 36;
+
+      // ── Detail rows ──
+      function detailRow(label, value) {
+        draw(C.lineGray);
+        doc.setLineWidth(0.2);
+        doc.line(ML, y + 6, ML + CW, y + 6);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        tcolor(C.grayMuted);
+        doc.text(label, ML, y);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9.5);
+        tcolor(C.grayText);
+        doc.text(value, ML + CW, y, { align: 'right' });
+        y += 12;
+      }
+
+      detailRow('Payment Date',  payment.date || '—');
+      detailRow('Client Name',   client.name  || '—');
+      detailRow('Phone Number',  client.phone || '—');
+      detailRow('Paid To',       'DM BEADS');
+      detailRow('Address',       'VAIKUTH DHAM SOCIETY, HATHI MANDIR ROAD, KATARGAM');
+      y += 4;
+
+      // ── Remaining balance ──
+      fill(remainingAfter === 0 ? C.greenLight : C.blueLight);
+      draw(remainingAfter === 0 ? C.green : C.blueDark);
+      doc.setLineWidth(0.4);
+      doc.roundedRect(ML, y, CW, 14, 2, 2, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      tcolor(remainingAfter === 0 ? C.green : C.blueDark);
+      doc.text('Remaining Balance', ML + 4, y + 9);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text(
+        remainingAfter === 0 ? 'FULLY SETTLED' : pdfINR(remainingAfter),
+        ML + CW - 4, y + 9, { align: 'right' }
+      );
+      y += 22;
+
+      // ── Signature area ──
+      const sigX2 = ML + CW;
+      const sigX1 = sigX2 - 58;
+      draw(C.grayMuted);
+      doc.setLineWidth(0.3);
+      doc.line(sigX1, y, sigX2, y);
+      y += 5;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      tcolor(C.grayMuted);
+      doc.text('Authorised Signature', sigX2, y, { align: 'right' });
+      doc.setFont('helvetica', 'bold');
+      tcolor(C.blueDark);
+      doc.text('DM BEADS', sigX2, y + 5, { align: 'right' });
+
+      // ── Footer ──
+      draw(C.lineGray);
+      doc.setLineWidth(0.3);
+      doc.line(ML, 282, ML + CW, 282);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      tcolor(C.grayMuted);
+      doc.text('This is a computer-generated payment receipt.', ML,      287);
+      doc.text('DM BEADS',                                     PW - MR, 287, { align: 'right' });
+
+      const safeDate = (payment.date || 'receipt').replace(/\//g, '-');
+      doc.save('RCPT-' + (client.phone || 'client') + '-' + safeDate + '.pdf');
+    }
+
+    async function downloadPDF() {
+      const btn = document.getElementById('btn-pdf');
+      btn.disabled = true;
+      btn.textContent = 'Generating…';
+
+      try {
+        const { jsPDF } = window.jspdf;
+
+        // ── Page constants ──
+        const PW = 210, PH = 297;
+        const ML = 15, MR = 15;
+        const CW = PW - ML - MR;
+
+        // ── Colour helpers ──
+        const C = {
+          blueDark:  [26,  58,  107],
+          blueMid:   [37,  99,  235],
+          blueLight: [219, 234, 254],
+          white:     [255, 255, 255],
+          grayText:  [55,  65,  81],
+          grayMuted: [107, 114, 128],
+          rowAlt:    [247, 250, 255],
+          lineGray:  [209, 213, 219],
+        };
+
+        const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+        function fill(c)   { doc.setFillColor(...c); }
+        function draw(c)   { doc.setDrawColor(...c); }
+        function tcolor(c) { doc.setTextColor(...c); }
+
+        // ── Fixed seller info ──
+        const SELLER_NAME = 'DM BEADS';
+        const SELLER_ADDR = 'VAIKUTH DHAM SOCIETY, HATHI MANDIR ROAD, KATARGAM';
+
+        // ── Collect form data ──
+        const clientName  = document.getElementById('client-name').value.trim()  || 'Client';
+        const clientPhone = document.getElementById('client-phone').value.trim() || '';
+        const invNumber   = document.getElementById('inv-number').value;
+        const invDate     = document.getElementById('inv-date').value;
+
+        const lineItems = [];
+        document.querySelectorAll('#items-body tr').forEach(function (tr) {
+          const service = tr.querySelector('.item-service').value.trim();
+          const qty     = parseFloat(tr.querySelector('.item-qty').value)  || 0;
+          const rate    = parseFloat(tr.querySelector('.item-rate').value) || 0;
+          if (service || qty || rate) {
+            lineItems.push({ service: service || '—', qty, rate, amount: qty * rate });
+          }
+        });
+
+        const grandTotal = lineItems.reduce(function (s, r) { return s + r.amount; }, 0);
+
+        // ── Load logo ──
+        const logoData = await loadImageAsBase64(LOGO_URL);
+
+        // ─────────────────────────────────
+        // SECTION 1 — Header band (centered logo + title)
+        // ─────────────────────────────────
+        const bandH = 52;
+        fill(C.blueDark);
+        doc.rect(0, 0, PW, bandH, 'F');
+
+        // Logo: centered, 36×36 mm
+        const logoSize = 36;
+        const logoX    = (PW - logoSize) / 2;
+        if (logoData) {
+          doc.addImage(logoData, 'PNG', logoX, 5, logoSize, logoSize);
+        }
+
+        // "SALE INVOICE" — centered below logo
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(18);
+        tcolor(C.white);
+        doc.text('SALE INVOICE', PW / 2, bandH - 5, { align: 'center' });
+
+        // DM BEADS — small subtitle if logo loaded (otherwise show as fallback)
+        if (!logoData) {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(13);
+          tcolor(C.white);
+          doc.text(SELLER_NAME, PW / 2, 20, { align: 'center' });
+        }
+
+        let y = bandH;
+
+        // ─────────────────────────────────
+        // SECTION 2 — Invoice # + Date bar
+        // ─────────────────────────────────
+        fill(C.blueLight);
+        doc.rect(0, y, PW, 11, 'F');
+
+        doc.setFontSize(8.5);
+        doc.setFont('helvetica', 'bold');
+        tcolor(C.blueDark);
+        doc.text('Invoice No:', ML, y + 7.2);
+        doc.setFont('helvetica', 'normal');
+        tcolor(C.grayText);
+        doc.text(invNumber, ML + 25, y + 7.2);
+
+        doc.setFont('helvetica', 'bold');
+        tcolor(C.blueDark);
+        doc.text('Date:', PW - MR - 42, y + 7.2);
+        doc.setFont('helvetica', 'normal');
+        tcolor(C.grayText);
+        doc.text(invDate, PW - MR - 30, y + 7.2);
+
+        y += 17;
+
+        // ─────────────────────────────────
+        // SECTION 3 — Seller / Client
+        // ─────────────────────────────────
+        const halfW = (CW - 8) / 2;
+        const colR  = ML + halfW + 8;
+
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        tcolor(C.blueMid);
+        doc.text('BILL FROM', ML,   y);
+        doc.text('BILL TO',   colR, y);
+        y += 4;
+
+        function drawParty(x, startY, name, addr, phone) {
+          let cy = startY;
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(10);
+          tcolor(C.grayText);
+          doc.text(name, x, cy);
+          cy += 5;
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8.5);
+          tcolor(C.grayMuted);
+          if (addr) {
+            const lines = doc.splitTextToSize(addr, halfW);
+            doc.text(lines, x, cy);
+            cy += lines.length * 4;
+          }
+          if (phone) {
+            doc.text('Ph: ' + phone, x, cy);
+            cy += 4;
+          }
+          return cy;
+        }
+
+        const endSeller = drawParty(ML,   y, SELLER_NAME, SELLER_ADDR, '');
+        const endClient = drawParty(colR, y, clientName,  '',          clientPhone);
+        y = Math.max(endSeller, endClient) + 8;
+
+        // ─────────────────────────────────
+        // SECTION 4 — Line items table
+        // ─────────────────────────────────
+        const cSvc = ML;
+        const cQty = ML + 98;
+        const cRte = ML + 120;
+        const cAmt = ML + CW;
+        const rowH = 7.5;
+
+        fill(C.blueDark);
+        doc.rect(ML, y, CW, rowH, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        tcolor(C.white);
+        doc.text('SERVICE / DESCRIPTION', cSvc + 2, y + 5);
+        doc.text('QTY',    cQty,      y + 5, { align: 'right' });
+        doc.text('RATE',   cRte + 18, y + 5, { align: 'right' });
+        doc.text('AMOUNT', cAmt,      y + 5, { align: 'right' });
+        y += rowH;
+
+        doc.setFontSize(9);
+        lineItems.forEach(function (row, i) {
+          if (i % 2 === 1) {
+            fill(C.rowAlt);
+            doc.rect(ML, y, CW, rowH, 'F');
+          }
+          doc.setFont('helvetica', 'normal');
+          tcolor(C.grayText);
+          const svcText = doc.splitTextToSize(row.service, 90)[0];
+          doc.text(svcText,            cSvc + 2,  y + 5);
+          doc.text(String(row.qty),    cQty,      y + 5, { align: 'right' });
+          doc.text(pdfINR(row.rate),   cRte + 18, y + 5, { align: 'right' });
+          doc.setFont('helvetica', 'bold');
+          tcolor(C.blueDark);
+          doc.text(pdfINR(row.amount), cAmt,      y + 5, { align: 'right' });
+          y += rowH;
+        });
+
+        draw(C.blueLight);
+        doc.setLineWidth(0.4);
+        doc.line(ML, y, ML + CW, y);
+        y += 5;
+
+        // ─────────────────────────────────
+        // SECTION 5 — Grand Total
+        // ─────────────────────────────────
+        const totLX = ML + 102;
+        const totVX = ML + CW;
+
+        y += 2;
+        fill(C.blueLight);
+        doc.rect(totLX - 3, y - 4.5, CW - 87, 9, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10.5);
+        tcolor(C.blueDark);
+        doc.text('Total', totLX, y + 1.5);
+        doc.text(pdfINR(grandTotal), totVX, y + 1.5, { align: 'right' });
+        y += 16;
+
+        // ─────────────────────────────────
+        // SECTION 6 — Signature area
+        // ─────────────────────────────────
+        const sigLineX1 = ML + CW - 58;
+        const sigLineX2 = ML + CW;
+
+        draw(C.grayMuted);
+        doc.setLineWidth(0.3);
+        doc.line(sigLineX1, y, sigLineX2, y);
+        y += 5;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        tcolor(C.grayMuted);
+        doc.text('Authorised Signature', sigLineX2, y, { align: 'right' });
+        doc.setFont('helvetica', 'bold');
+        tcolor(C.blueDark);
+        doc.text(SELLER_NAME, sigLineX2, y + 5, { align: 'right' });
+
+        // ─────────────────────────────────
+        // SECTION 7 — Footer
+        // ─────────────────────────────────
+        draw(C.lineGray);
+        doc.setLineWidth(0.3);
+        doc.line(ML, 282, ML + CW, 282);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        tcolor(C.grayMuted);
+        doc.text('This is a computer-generated invoice.', ML,       287);
+        doc.text(SELLER_NAME,                             PW - MR,  287, { align: 'right' });
+
+        doc.save(invNumber + '.pdf');
+
+      } catch (err) {
+        alert('PDF generation failed: ' + err.message);
+        console.error(err);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '&#8595; Download PDF Invoice';
+      }
+    }
+
+    document.getElementById('btn-pdf').addEventListener('click', downloadPDF);
+
+    // ─────────────────────────────────────────────
+    // Grand total helper (reads live form values)
+    // ─────────────────────────────────────────────
+    function computeGrandTotal() {
+      let subtotal = 0;
+      document.querySelectorAll('#items-body tr').forEach(function (tr) {
+        subtotal += (parseFloat(tr.querySelector('.item-qty').value)  || 0) *
+                    (parseFloat(tr.querySelector('.item-rate').value) || 0);
+      });
+      return subtotal;
+    }
+
+    // Consume (increment + store) the current invoice counter and return the number used
+    function consumeInvoiceNumber() {
+      const fy  = getFinancialYear();
+      const key = `inv_counter_${fy}`;
+      const n   = parseInt(localStorage.getItem(key) || '0') + 1;
+      localStorage.setItem(key, n);
+      return `INV-${fy}-${String(n).padStart(3, '0')}`;
+    }
+
+    // ─────────────────────────────────────────────
+    // Ledger — Supabase read/write
+    // ─────────────────────────────────────────────
+    let allClients = []; // cache for search filtering
+
+    // Save current invoice as a purchase under the client's phone-number key
+    async function saveToLedger() {
+      const phone      = document.getElementById('client-phone').value.trim();
+      const clientName = document.getElementById('client-name').value.trim();
+
+      if (!phone)               { alert('Enter the client phone number before saving.'); return; }
+      if (!/^\d{10}$/.test(phone)) { alert('Phone number must be exactly 10 digits.'); return; }
+
+      const grandTotal = computeGrandTotal();
+      if (grandTotal <= 0) { alert('Add at least one line item before saving.'); return; }
+
+      const btn = document.getElementById('btn-save-ledger');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+
+      try {
+        const invNo   = document.getElementById('inv-number').value;
+        const invDate = document.getElementById('inv-date').value;
+
+        // Check if this client already has a row
+        const { data: existing, error: fetchErr } = await db
+          .from('ledger')
+          .select('client')
+          .eq('code', workspaceCode)
+          .eq('client_key', phone)
+          .maybeSingle();
+
+        if (fetchErr) throw fetchErr;
+
+        const newPurchase = { invoiceNo: invNo, date: invDate, grandTotal };
+
+        if (existing) {
+          // Append to existing client
+          const updated = Object.assign({}, existing.client, {
+            purchases: (existing.client.purchases || []).concat(newPurchase)
+          });
+          const { error: updErr } = await db
+            .from('ledger')
+            .update({ client: updated })
+            .eq('code', workspaceCode)
+            .eq('client_key', phone);
+          if (updErr) throw updErr;
+        } else {
+          // Create new client row
+          const newClient = {
+            name:      clientName || 'Unknown',
+            phone,
+            purchases: [newPurchase]
+          };
+          const { error: insErr } = await db
+            .from('ledger')
+            .insert({ code: workspaceCode, client_key: phone, client: newClient });
+          if (insErr) throw insErr;
+        }
+
+        // Advance the invoice counter; update displayed number to next value
+        consumeInvoiceNumber();
+        document.getElementById('inv-number').value = peekInvoiceNumber();
+
+        await loadClients();
+        alert('Saved! Invoice ' + invNo + ' added to ' + (clientName || phone) + '\'s ledger.');
+
+      } catch (err) {
+        alert('Save failed: ' + err.message);
+        console.error(err);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '&#8679; Save to Ledger';
+      }
+    }
+
+    document.getElementById('btn-save-ledger').addEventListener('click', saveToLedger);
+
+    // ── Load all clients for this workspace from Supabase ──
+    async function loadClients() {
+      const { data, error } = await db
+        .from('ledger')
+        .select('client_key, client')
+        .eq('code', workspaceCode);
+
+      if (error) { console.error('loadClients:', error); return; }
+
+      allClients = (data || []).map(function (row) {
+        const purchases   = row.client.purchases || [];
+        const payments    = row.client.payments  || [];
+        const totalBilled = purchases.reduce(function (s, p) { return s + (p.grandTotal || 0); }, 0);
+        const totalPaid   = payments.reduce(function (s, p)  { return s + (p.amount   || 0); }, 0);
+        const outstanding = Math.max(0, totalBilled - totalPaid);
+        return Object.assign({}, row.client, { phone: row.client_key, outstanding });
+      });
+
+      // Sort alphabetically by name
+      allClients.sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
+
+      renderClientList(allClients);
+    }
+
+    // ── Render the flat client list ──
+    function renderClientList(clients) {
+      // If a detail is open, leave it; only refresh the list items for search
+      const listEl = document.getElementById('client-list');
+      listEl.innerHTML = '';
+
+      if (clients.length === 0) {
+        listEl.innerHTML = '<div class="ledger-empty">No clients yet. Save an invoice to begin.</div>';
+        return;
+      }
+
+      clients.forEach(function (c) {
+        const item = document.createElement('div');
+        item.className = 'client-item';
+        item.dataset.phone = c.phone;
+        item.innerHTML =
+          '<div>' +
+            '<div class="ci-name">' + (c.name || c.phone) + '</div>' +
+            '<div class="ci-phone">' + c.phone + '</div>' +
+          '</div>' +
+          '<div class="ci-amount">' + fmtINR(c.outstanding) + '</div>';
+        item.addEventListener('click', function () { showClientDetail(c); });
+        listEl.appendChild(item);
+      });
+    }
+
+    // ── Show client detail with Record Payment flow ──
+    function showClientDetail(client) {
+      document.querySelectorAll('.client-item').forEach(function (el) {
+        el.classList.toggle('active', el.dataset.phone === client.phone);
+      });
+
+      const detailEl  = document.getElementById('client-detail');
+      const purchases = client.purchases || [];
+      const payments  = client.payments  || [];
+
+      const totalBilled = purchases.reduce(function (s, p) { return s + (p.grandTotal || 0); }, 0);
+      const totalPaid   = payments.reduce(function  (s, p) { return s + (p.amount   || 0); }, 0);
+      const remaining   = Math.max(0, totalBilled - totalPaid);
+
+      // ── Billing summary ──
+      const summaryHTML =
+        '<div class="billing-summary">' +
+          '<div class="billing-stat">' +
+            '<div class="bs-label">Total Billed</div>' +
+            '<div class="bs-amount">' + fmtINR(totalBilled) + '</div>' +
+          '</div>' +
+          '<div class="billing-stat">' +
+            '<div class="bs-label">Paid</div>' +
+            '<div class="bs-amount paid">' + fmtINR(totalPaid) + '</div>' +
+          '</div>' +
+          '<div class="billing-stat">' +
+            '<div class="bs-label">Remaining</div>' +
+            '<div class="bs-amount ' + (remaining === 0 ? 'settled' : 'remaining') + '">' +
+              fmtINR(remaining) + '</div>' +
+          '</div>' +
+        '</div>';
+
+      // ── Record Payment input row ──
+      const payInputHTML =
+        '<div class="payment-section-title">Record Payment</div>' +
+        '<div class="payment-input-row">' +
+          '<input type="number" id="payment-amt-input" placeholder="Amount paid (₹)" min="0" step="any" />' +
+          '<button class="btn-record" id="btn-record-payment">Record</button>' +
+        '</div>';
+
+      // ── Payment history ──
+      function buildPaymentHistory() {
+        if (!payments.length) return '';
+        return '<div class="payment-section-title">Payments Received</div>' +
+          '<div id="payment-hist-list">' +
+            payments.map(function (py, i) {
+              return '<div class="payment-hist-item" data-pidx="' + i + '">' +
+                '<div class="phi-left">' +
+                  '<div class="phi-date">' + (py.date || '—') + '</div>' +
+                  '<div class="phi-amt">' + fmtINR(py.amount || 0) + '</div>' +
+                '</div>' +
+                '<div class="phi-actions">' +
+                  '<button class="btn-receipt"     data-pidx="' + i + '">&#8595; Receipt</button>' +
+                  '<button class="btn-del-payment" data-pidx="' + i + '">Undo</button>' +
+                '</div>' +
+              '</div>';
+            }).join('') +
+          '</div>';
+      }
+
+      // ── Purchase table ──
+      function buildPurchaseRows() {
+        return purchases.map(function (p, i) {
+          return '<tr data-idx="' + i + '">' +
+            '<td>' + (p.invoiceNo || '—') + '</td>' +
+            '<td style="white-space:nowrap">' + (p.date || '—') + '</td>' +
+            '<td class="ptbl-amt">' + fmtINR(p.grandTotal || 0) + '</td>' +
+            '<td class="ptbl-actions">' +
+              '<button class="btn-pay-purch"  data-idx="' + i + '">Pay</button>' +
+              '<button class="btn-edit-purch" data-idx="' + i + '">Edit</button>' +
+              '<button class="btn-del-purch"  data-idx="' + i + '">Del</button>' +
+            '</td>' +
+          '</tr>';
+        }).join('');
+      }
+
+      const purchaseTableHTML = purchases.length === 0
+        ? '<div class="ledger-empty" style="padding-top:6px;">No invoices on record.</div>'
+        : '<table class="purchase-tbl">' +
+            '<thead><tr><th>Invoice No</th><th>Date</th><th>Amount</th><th></th></tr></thead>' +
+            '<tbody id="purchase-tbody">' + buildPurchaseRows() + '</tbody>' +
+          '</table>';
+
+      // ── Assemble DOM ──
+      detailEl.innerHTML =
+        '<button class="detail-back" id="btn-back-list">&#8592; All Clients</button>' +
+        '<div class="detail-name">' + (client.name || client.phone) + '</div>' +
+        '<div class="detail-sub">Ph: ' + client.phone +
+          (client.gstin ? ' &nbsp;|&nbsp; GSTIN: ' + client.gstin : '') + '</div>' +
+        summaryHTML +
+        payInputHTML +
+        buildPaymentHistory() +
+        '<div class="purchases-section-title">Invoices</div>' +
+        purchaseTableHTML +
+        '<button class="btn-clear-payment" id="btn-clear-payment">' +
+          '&#10006;&nbsp; Mark Paid / Clear All Records' +
+        '</button>';
+
+      detailEl.style.display = 'block';
+      document.getElementById('client-list').style.display        = 'none';
+      document.getElementById('client-search-wrap').style.display = 'none';
+
+      // ── Back to list ──
+      document.getElementById('btn-back-list').addEventListener('click', function () {
+        detailEl.style.display = 'none';
+        document.getElementById('client-list').style.display        = 'block';
+        document.getElementById('client-search-wrap').style.display = 'block';
+        document.querySelectorAll('.client-item').forEach(function (el) { el.classList.remove('active'); });
+      });
+
+      // ── Record Payment ──
+      function getTodayDDMMYYYY() {
+        const d  = new Date();
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        return dd + '/' + mm + '/' + d.getFullYear();
+      }
+
+      async function doRecordPayment() {
+        const input  = document.getElementById('payment-amt-input');
+        const btn    = document.getElementById('btn-record-payment');
+        const amount = parseFloat(input.value);
+        if (!amount || amount <= 0) { alert('Enter a valid payment amount.'); return; }
+
+        const curRemaining = Math.max(0,
+          (client.purchases || []).reduce(function (s, p) { return s + (p.grandTotal || 0); }, 0) -
+          (client.payments  || []).reduce(function (s, p) { return s + (p.amount   || 0); }, 0)
+        );
+        if (amount > curRemaining && curRemaining > 0) {
+          const ok = confirm(
+            'Payment of ' + fmtINR(amount) + ' exceeds remaining balance of ' +
+            fmtINR(curRemaining) + '.\nRecord it anyway?'
+          );
+          if (!ok) return;
+        }
+
+        btn.disabled    = true;
+        btn.textContent = '…';
+
+        try {
+          const { data: fresh, error: fe } = await db.from('ledger').select('client')
+            .eq('code', workspaceCode).eq('client_key', client.phone).single();
+          if (fe) throw fe;
+
+          const newPayments = (fresh.client.payments || [])
+            .concat({ date: getTodayDDMMYYYY(), amount: amount });
+
+          const { error: ue } = await db.from('ledger')
+            .update({ client: Object.assign({}, fresh.client, { payments: newPayments }) })
+            .eq('code', workspaceCode).eq('client_key', client.phone);
+          if (ue) throw ue;
+
+          input.value = '';
+          await loadClients();
+          const updated = allClients.find(function (c) { return c.phone === client.phone; });
+          showClientDetail(updated || client);
+
+        } catch (err) {
+          alert('Record failed: ' + err.message);
+          btn.disabled    = false;
+          btn.textContent = 'Record';
+        }
+      }
+
+      document.getElementById('btn-record-payment').addEventListener('click', doRecordPayment);
+      document.getElementById('payment-amt-input').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') doRecordPayment();
+      });
+
+      // ── Download receipt / Delete (undo) a payment ──
+      const histList = document.getElementById('payment-hist-list');
+      if (histList) {
+        histList.addEventListener('click', async function (e) {
+          // ── Receipt download ──
+          const rcptBtn = e.target.closest('.btn-receipt');
+          if (rcptBtn) {
+            const pidx = parseInt(rcptBtn.dataset.pidx);
+            const py   = payments[pidx];
+            const runningPaid = payments.slice(0, pidx + 1)
+              .reduce(function (s, p) { return s + (p.amount || 0); }, 0);
+            const remainingAfter = Math.max(0, totalBilled - runningPaid);
+            rcptBtn.disabled    = true;
+            rcptBtn.textContent = '…';
+            generateReceiptPDF(client, py, remainingAfter)
+              .catch(function (err) { alert('Receipt failed: ' + err.message); })
+              .finally(function () {
+                rcptBtn.disabled    = false;
+                rcptBtn.innerHTML   = '&#8595; Receipt';
+              });
+            return;
+          }
+
+          const delBtn = e.target.closest('.btn-del-payment');
+          if (!delBtn) return;
+          const pidx = parseInt(delBtn.dataset.pidx);
+          const py   = payments[pidx];
+          const ok   = confirm(
+            'Undo payment of ' + fmtINR(py.amount || 0) + ' on ' + (py.date || '?') + '?'
+          );
+          if (!ok) return;
+
+          delBtn.disabled = true;
+
+          try {
+            const { data: fresh, error: fe } = await db.from('ledger').select('client')
+              .eq('code', workspaceCode).eq('client_key', client.phone).single();
+            if (fe) throw fe;
+
+            const newPayments = (fresh.client.payments || [])
+              .filter(function (_, i) { return i !== pidx; });
+
+            const { error: ue } = await db.from('ledger')
+              .update({ client: Object.assign({}, fresh.client, { payments: newPayments }) })
+              .eq('code', workspaceCode).eq('client_key', client.phone);
+            if (ue) throw ue;
+
+            await loadClients();
+            const updated = allClients.find(function (c) { return c.phone === client.phone; });
+            showClientDetail(updated || client);
+
+          } catch (err) {
+            alert('Undo failed: ' + err.message);
+            delBtn.disabled = false;
+          }
+        });
+      }
+
+      // ── Clear Payment — delete entire client row ──
+      document.getElementById('btn-clear-payment').addEventListener('click', async function () {
+        const ok = confirm(
+          'Clear all records for ' + (client.name || client.phone) + '?\nThis can\'t be undone.'
+        );
+        if (!ok) return;
+
+        this.disabled    = true;
+        this.textContent = 'Clearing…';
+
+        try {
+          const { error } = await db.from('ledger').delete()
+            .eq('code',       workspaceCode)
+            .eq('client_key', client.phone);
+          if (error) throw error;
+
+          detailEl.style.display = 'none';
+          document.getElementById('client-list').style.display        = 'block';
+          document.getElementById('client-search-wrap').style.display = 'block';
+          await loadClients();
+        } catch (err) {
+          alert('Error: ' + err.message);
+          this.disabled    = false;
+          this.textContent = '✖ Mark Paid / Clear All Records';
+        }
+      });
+
+      // ── Edit / Delete purchases via delegation on tbody ──
+      if (!purchases.length) return;
+
+      document.getElementById('purchase-tbody').addEventListener('click', async function (e) {
+        const payBtn    = e.target.closest('.btn-pay-purch');
+        const editBtn   = e.target.closest('.btn-edit-purch');
+        const delBtn    = e.target.closest('.btn-del-purch');
+        const saveBtn   = e.target.closest('.btn-save-edit');
+        const cancelBtn = e.target.closest('.btn-cancel-edit');
+
+        // ── Pay: record the invoice amount as a payment instantly ──
+        if (payBtn) {
+          const idx    = parseInt(payBtn.dataset.idx);
+          const p      = purchases[idx];
+          const amount = p.grandTotal || 0;
+          if (amount <= 0) { alert('This invoice has no amount to record.'); return; }
+
+          const ok = confirm(
+            'Record payment of ' + fmtINR(amount) + ' for ' + (p.invoiceNo || 'this invoice') + '?'
+          );
+          if (!ok) return;
+
+          payBtn.disabled    = true;
+          payBtn.textContent = '…';
+
+          try {
+            const { data: fresh, error: fe } = await db.from('ledger').select('client')
+              .eq('code', workspaceCode).eq('client_key', client.phone).single();
+            if (fe) throw fe;
+
+            const d   = new Date();
+            const dd  = String(d.getDate()).padStart(2, '0');
+            const mm  = String(d.getMonth() + 1).padStart(2, '0');
+            const today = dd + '/' + mm + '/' + d.getFullYear();
+
+            const newPayments = (fresh.client.payments || [])
+              .concat({ date: today, amount: amount });
+
+            const { error: ue } = await db.from('ledger')
+              .update({ client: Object.assign({}, fresh.client, { payments: newPayments }) })
+              .eq('code', workspaceCode).eq('client_key', client.phone);
+            if (ue) throw ue;
+
+            await loadClients();
+            const updated = allClients.find(function (c) { return c.phone === client.phone; });
+            showClientDetail(updated || client);
+
+          } catch (err) {
+            alert('Record failed: ' + err.message);
+            payBtn.disabled    = false;
+            payBtn.textContent = 'Pay';
+          }
+          return;
+        }
+
+        if (editBtn) {
+          const idx = parseInt(editBtn.dataset.idx);
+          const p   = purchases[idx];
+          const tr  = this.querySelector('tr[data-idx="' + idx + '"]');
+          tr.innerHTML =
+            '<td class="edit-cell"><input class="edit-invno"  value="' + (p.invoiceNo  || '') + '" /></td>' +
+            '<td class="edit-cell"><input class="edit-date"   value="' + (p.date       || '') + '" maxlength="10" /></td>' +
+            '<td class="edit-cell"><input class="edit-amount" type="number" value="' + (p.grandTotal || 0) + '" min="0" step="any" /></td>' +
+            '<td class="ptbl-actions">' +
+              '<button class="btn-save-edit"   data-idx="' + idx + '">Save</button>' +
+              '<button class="btn-cancel-edit" data-idx="' + idx + '">Cancel</button>' +
+            '</td>';
+          tr.querySelector('.edit-invno').focus();
+        }
+
+        if (cancelBtn) {
+          const fresh = allClients.find(function (c) { return c.phone === client.phone; });
+          showClientDetail(fresh || client);
+        }
+
+        if (saveBtn) {
+          const idx    = parseInt(saveBtn.dataset.idx);
+          const tr     = this.querySelector('tr[data-idx="' + idx + '"]');
+          const newInv = tr.querySelector('.edit-invno').value.trim();
+          const newDt  = tr.querySelector('.edit-date').value.trim();
+          const newAmt = parseFloat(tr.querySelector('.edit-amount').value) || 0;
+
+          if (newAmt <= 0) { alert('Amount must be greater than zero.'); return; }
+
+          saveBtn.disabled    = true;
+          saveBtn.textContent = '…';
+
+          try {
+            const { data: fresh, error: fe } = await db.from('ledger').select('client')
+              .eq('code', workspaceCode).eq('client_key', client.phone).single();
+            if (fe) throw fe;
+
+            const newPurchases = (fresh.client.purchases || []).slice();
+            newPurchases[idx]  = { invoiceNo: newInv, date: newDt, grandTotal: newAmt };
+
+            const { error: ue } = await db.from('ledger')
+              .update({ client: Object.assign({}, fresh.client, { purchases: newPurchases }) })
+              .eq('code', workspaceCode).eq('client_key', client.phone);
+            if (ue) throw ue;
+
+            await loadClients();
+            const updated = allClients.find(function (c) { return c.phone === client.phone; });
+            showClientDetail(updated || client);
+
+          } catch (err) {
+            alert('Save failed: ' + err.message);
+            saveBtn.disabled    = false;
+            saveBtn.textContent = 'Save';
+          }
+        }
+
+        if (delBtn) {
+          const idx = parseInt(delBtn.dataset.idx);
+          const p   = purchases[idx];
+          const ok  = confirm(
+            'Delete invoice ' + (p.invoiceNo || ('#' + (idx + 1))) +
+            ' (' + fmtINR(p.grandTotal || 0) + ')?\nThis can\'t be undone.'
+          );
+          if (!ok) return;
+
+          delBtn.disabled = true;
+
+          try {
+            const { data: fresh, error: fe } = await db.from('ledger').select('client')
+              .eq('code', workspaceCode).eq('client_key', client.phone).single();
+            if (fe) throw fe;
+
+            const newPurchases = (fresh.client.purchases || [])
+              .filter(function (_, i) { return i !== idx; });
+
+            const { error: ue } = await db.from('ledger')
+              .update({ client: Object.assign({}, fresh.client, { purchases: newPurchases }) })
+              .eq('code', workspaceCode).eq('client_key', client.phone);
+            if (ue) throw ue;
+
+            await loadClients();
+            const updated = allClients.find(function (c) { return c.phone === client.phone; });
+            if (updated) {
+              showClientDetail(updated);
+            } else {
+              detailEl.style.display = 'none';
+              document.getElementById('client-list').style.display        = 'block';
+              document.getElementById('client-search-wrap').style.display = 'block';
+            }
+
+          } catch (err) {
+            alert('Delete failed: ' + err.message);
+            delBtn.disabled = false;
+          }
+        }
+      });
+    }
+
+    // ── Live search filter ──
+    document.getElementById('client-search').addEventListener('input', function () {
+      const q = this.value.trim().toLowerCase();
+      if (!q) { renderClientList(allClients); return; }
+      renderClientList(allClients.filter(function (c) {
+        return (c.name  || '').toLowerCase().includes(q) ||
+               (c.phone || '').includes(q);
+      }));
+    });
+
+    // ─────────────────────────────────────────────
+    // Workspace unlock — secret code gate
+    // ─────────────────────────────────────────────
+    function unlock() {
+      const input = document.getElementById('code-input');
+      const code  = input.value.trim();
+      // Must be exactly 4 digits
+      if (!/^\d{4}$/.test(code)) {
+        input.style.borderColor = '#ef4444';
+        input.focus();
+        return;
+      }
+      input.style.borderColor = '';
+
+      workspaceCode = code;
+      // Remember for this browser session so a page-refresh doesn't re-ask
+      sessionStorage.setItem('gst_workspace_code', code);
+
+      document.getElementById('lock-screen').style.display = 'none';
+      document.getElementById('main-app').style.display    = 'block';
+      loadClients();
+    }
+
+    // If the code was already entered this session, skip the lock screen
+    const _saved = sessionStorage.getItem('gst_workspace_code');
+    if (_saved) {
+      workspaceCode = _saved;
+      document.getElementById('lock-screen').style.display = 'none';
+      document.getElementById('main-app').style.display    = 'block';
+      loadClients();
+    }
+
+    document.getElementById('btn-open').addEventListener('click', unlock);
+
+    const _codeInput = document.getElementById('code-input');
+    // Strip non-digits as the user types
+    _codeInput.addEventListener('input', function () {
+      this.value = this.value.replace(/\D/g, '').slice(0, 4);
+      this.style.borderColor = ''; // clear red border once they start correcting
+    });
+    // Auto-submit when 4 digits are entered
+    _codeInput.addEventListener('input', function () {
+      if (this.value.length === 4) unlock();
+    });
+    _codeInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') unlock();
+    });
+  </script>
+
+</body>
+</html>
