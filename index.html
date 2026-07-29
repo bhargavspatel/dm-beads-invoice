@@ -1436,7 +1436,7 @@
             '<td style="' + C1 + 'text-align:center;">' + (item.unit||'') + '</td>' +
             '<td style="' + C1 + 'text-align:right;">' + (item.qty>0?(item.qtyDisplay||smartNum(item.qty)):'') + '</td>' +
             '<td style="' + C1 + 'text-align:right;">' + (item.rate>0?(item.rateDisplay||smartNum(item.rate)):'') + '</td>' +
-            '<td style="' + C1 + 'text-align:right;">' + (item.amount>0?smartNum(item.amount):'') + '</td>' +
+            '<td style="' + C1 + 'text-align:right;">' + (item.amount>0?item.amount.toFixed(2):'') + '</td>' +
           '</tr>';
         }).join('');
 
@@ -1489,7 +1489,7 @@
             '<tbody>' + dataRows + emptyRows + '</tbody>' +
             '<tfoot><tr style="background:#f0f0f0;">' +
               '<td colspan="3" style="' + C1 + '">&nbsp;</td>' +
-              '<td style="' + C1 + 'text-align:right;font-weight:700;">' + (qtyTotal>0?smartNum(qtyTotal):'') + '</td>' +
+              '<td style="' + C1 + 'text-align:right;font-weight:700;">' + (qtyTotal>0?qtyTotal.toFixed(2):'') + '</td>' +
               '<td colspan="2" style="' + C1 + '">&nbsp;</td>' +
             '</tr></tfoot>' +
           '</table>' +
@@ -1501,9 +1501,9 @@
               '</td>' +
               '<td style="padding:0;vertical-align:top;">' +
                 '<table style="width:100%;border-collapse:collapse;">' +
-                  '<tr><td style="padding:7px 14px;font-size:12px;border-bottom:1px solid #ccc;">Basic Amount &nbsp;:&ndash;</td><td style="padding:7px 14px;text-align:right;font-size:12px;border-bottom:1px solid #ccc;">' + smartNum(basic) + '</td></tr>' +
+                  '<tr><td style="padding:7px 14px;font-size:12px;border-bottom:1px solid #ccc;">Basic Amount &nbsp;:&ndash;</td><td style="padding:7px 14px;text-align:right;font-size:12px;border-bottom:1px solid #ccc;">' + basic.toFixed(2) + '</td></tr>' +
                   '<tr><td style="padding:7px 14px;font-size:12px;border-bottom:1px solid #ccc;">Round Off &nbsp;:&ndash;</td><td style="padding:7px 14px;text-align:right;font-size:12px;border-bottom:1px solid #ccc;">' + roundOffTxt + '</td></tr>' +
-                  '<tr><td style="padding:7px 14px;font-size:13px;font-weight:700;">Total Amount &nbsp;:&ndash;</td><td style="padding:7px 14px;text-align:right;font-size:13px;font-weight:700;">' + smartNum(totalAmt) + '</td></tr>' +
+                  '<tr><td style="padding:7px 14px;font-size:13px;font-weight:700;">Total Amount &nbsp;:&ndash;</td><td style="padding:7px 14px;text-align:right;font-size:13px;font-weight:700;">' + totalAmt.toFixed(2) + '</td></tr>' +
                 '</table>' +
               '</td>' +
             '</tr>' +
@@ -2094,7 +2094,7 @@
                 case 2: txt = row.unit || ''; al = 'C'; break;
                 case 3: txt = row.qty > 0 ? (row.qtyDisplay || smartNum(row.qty)) : ''; al = 'R'; break;
                 case 4: txt = row.rate > 0 ? (row.rateDisplay || smartNum(row.rate)) : ''; al = 'R'; break;
-                case 5: txt = row.amount > 0 ? smartNum(row.amount) : ''; al = 'R'; break;
+                case 5: txt = row.amount > 0 ? row.amount.toFixed(2) : ''; al = 'R'; break;
               }
               cellText(CX[k], y, COL[k], ROW_H, txt, 'normal', 9, al);
             }
@@ -2106,7 +2106,7 @@
         for (let k = 0; k < COL.length; k++) {
           cellRect(CX[k], y, COL[k], ROW_H, [240,240,240]);
           if (k === 3 && qtyTotal > 0) {
-            cellText(CX[k], y, COL[k], ROW_H, smartNum(qtyTotal), 'bold', 9, 'R');
+            cellText(CX[k], y, COL[k], ROW_H, qtyTotal.toFixed(2), 'bold', 9, 'R');
           }
         }
         y += ROW_H;
@@ -2136,7 +2136,7 @@
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
         doc.text('Basic Amount  :-', footSplitX + 3, y + AMT_ROW_H/2 + 1.8);
-        doc.text(smartNum(grandTotal), ML + CW - 2, y + AMT_ROW_H/2 + 1.8, { align: 'right' });
+        doc.text(grandTotal.toFixed(2), ML + CW - 2, y + AMT_ROW_H/2 + 1.8, { align: 'right' });
         doc.setLineWidth(0.2);
         doc.line(footSplitX, y + AMT_ROW_H, ML + CW, y + AMT_ROW_H);
 
@@ -2149,7 +2149,7 @@
         // Total Amount
         doc.setFont('helvetica', 'bold');
         doc.text('Total Amount  :-', footSplitX + 3, y + AMT_ROW_H*2 + AMT_ROW_H/2 + 1.8);
-        doc.text(smartNum(totalAmt), ML + CW - 2, y + AMT_ROW_H*2 + AMT_ROW_H/2 + 1.8, { align: 'right' });
+        doc.text(totalAmt.toFixed(2), ML + CW - 2, y + AMT_ROW_H*2 + AMT_ROW_H/2 + 1.8, { align: 'right' });
 
         y += footH + 1;
 
