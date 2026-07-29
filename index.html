@@ -270,26 +270,29 @@
     .col-service { min-width: 140px; position: relative; }
 
     .desc-dropdown {
-      position: absolute;
-      top: calc(100% + 2px);
-      left: 0;
-      min-width: 100%;
+      position: fixed;
       background: #fff;
       border: 1.5px solid var(--blue-border);
-      border-radius: 9px;
-      box-shadow: 0 6px 24px rgba(26,58,107,0.16);
-      z-index: 9999;
-      max-height: 220px;
-      overflow-y: auto;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(26,58,107,0.22);
+      z-index: 99999;
+      padding: 10px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 5px;
+      min-width: 520px;
     }
     .desc-dd-item {
-      padding: 9px 14px;
-      font-size: 0.87rem;
+      padding: 8px 10px;
+      font-size: 0.82rem;
       cursor: pointer;
       white-space: nowrap;
       color: var(--gray-text);
+      border-radius: 7px;
+      text-align: center;
+      border: 1px solid #e5eaf3;
     }
-    .desc-dd-item:hover, .desc-dd-item.active { background: var(--blue-light); color: var(--blue-dark); font-weight: 600; }
+    .desc-dd-item:hover, .desc-dd-item.active { background: var(--blue-light); color: var(--blue-dark); font-weight: 600; border-color: var(--blue-border); }
     .col-unit    { width: 62px; }
     .col-qty     { width: 130px; }
     .col-rate    { width: 100px; }
@@ -1334,13 +1337,18 @@
       const rateInput = tr.querySelector('.item-rate');
       const amountDiv = tr.querySelector('.item-amount');
 
-      // Product autocomplete dropdown
+      // Product autocomplete dropdown (fixed-position so it overlays everything)
       const svcInput = tr.querySelector('.item-service');
-      const svcTd    = tr.querySelector('.col-service');
       const dropdown = document.createElement('div');
       dropdown.className = 'desc-dropdown';
       dropdown.style.display = 'none';
-      svcTd.appendChild(dropdown);
+      document.body.appendChild(dropdown);
+
+      function positionDropdown() {
+        const rect = svcInput.getBoundingClientRect();
+        dropdown.style.top  = (rect.bottom + 4) + 'px';
+        dropdown.style.left = rect.left + 'px';
+      }
 
       function showDropdown(filter) {
         const q = (filter || '').toLowerCase();
@@ -1349,7 +1357,8 @@
         dropdown.innerHTML = matches.map(function(p){
           return '<div class="desc-dd-item">' + p + '</div>';
         }).join('');
-        dropdown.style.display = 'block';
+        positionDropdown();
+        dropdown.style.display = 'grid';
         dropdown.querySelectorAll('.desc-dd-item').forEach(function(item){
           item.addEventListener('mousedown', function(e){
             e.preventDefault();
