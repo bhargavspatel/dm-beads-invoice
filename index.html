@@ -1074,6 +1074,27 @@
       color: var(--blue-mid);
       margin: 14px 0 7px;
     }
+    .purchases-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 14px 0 7px;
+    }
+    .purchases-section-header .purchases-section-title { margin: 0; }
+    .btn-statement {
+      background: #1a3a6b;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 5px 11px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      letter-spacing: 0.03em;
+      transition: background 0.15s;
+    }
+    .btn-statement:hover { background: #122952; }
   </style>
 </head>
 <body>
@@ -1815,6 +1836,146 @@
     }
 
     // ── Reprint a stored invoice as PDF ──
+    async function generateStatement(client) {
+      const { jsPDF } = window.jspdf;
+      const PW = 210, ML = 12, MR = 12, CW = PW - ML - MR;
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+      const purchases = client.purchases || [];
+      const payments  = client.payments  || [];
+      const totalBilled   = purchases.reduce(function(s,p){ return s+(p.grandTotal||0); }, 0);
+      const totalPaid     = payments.reduce(function(s,p){  return s+(p.amount||0); }, 0);
+      const outstanding   = Math.max(0, totalBilled - totalPaid);
+
+      const d = new Date();
+      const todayStr = String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+      const logoData = await loadImageAsBase64(LOGO_URL);
+
+      // Columns: Date | InvNo | Description | Unit | Qty | Rate | Amount  (total = 186mm)
+      const COL = [22, 32, 50, 12, 15, 20, 35];
+      const CX  = [ML];
+      for (let k = 0; k < COL.length - 1; k++) CX.push(CX[k] + COL[k]);
+      const ROW_H = 7, PAGE_BOTTOM = 297 - 20;
+      let y = 8;
+
+      function ct(x, yw, w, h, txt, fs, sz, al, rgb) {
+        if (txt === null || txt === undefined || txt === '') return;
+        doc.setFont('helvetica', fs || 'normal');
+        doc.setFontSize(sz || 8.5);
+        doc.setTextColor(...(rgb || [0,0,0]));
+        const mid = yw + h/2 + 1.8;
+        if (al === 'R') doc.text(String(txt), x+w-2, mid, {align:'right'});
+        else if (al === 'C') doc.text(String(txt), x+w/2, mid, {align:'center'});
+        else doc.text(String(txt), x+2, mid);
+      }
+
+      function drawTableHeader() {
+        const hdrs = ['Date','Invoice No','Description','Unit','Qty','Rate','Amount'];
+        doc.setFillColor(26,58,107);
+        doc.rect(ML, y, CW, ROW_H, 'F');
+        for (let k = 0; k < COL.length; k++) {
+          const al = k >= 4 ? 'R' : 'L';
+          ct(CX[k], y, COL[k], ROW_H, hdrs[k], 'bold', 8, al, [255,255,255]);
+        }
+        y += ROW_H;
+      }
+
+      function checkPage() {
+        if (y + ROW_H > PAGE_BOTTOM) { doc.addPage(); y = 15; drawTableHeader(); }
+      }
+
+      // ─── Header ───────────────────────────────────────────────
+      const lsz = 22;
+      if (logoData) { doc.addImage(logoData,'PNG',(PW-lsz)/2,y,lsz,lsz); y += lsz+2; } else { y += 4; }
+      doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.text('DM BEADS',PW/2,y,{align:'center'}); y+=5;
+      doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.text('VAIKUTH DHAM SOCIETY, HATHI MANDIR ROAD, KATARGAM',PW/2,y,{align:'center'}); y+=5;
+      doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.text('ACCOUNT STATEMENT',PW/2,y,{align:'center'});
+      const tw = doc.getTextWidth('ACCOUNT STATEMENT');
+      doc.setLineWidth(0.4); doc.line(PW/2-tw/2,y+0.8,PW/2+tw/2,y+0.8); y+=7;
+
+      // Client box
+      doc.setDrawColor(0,0,0); doc.setLineWidth(0.3); doc.rect(ML,y,CW,14);
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(0,0,0);
+      doc.text('TO :  '+(client.name||client.phone), ML+3, y+5.5);
+      doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
+      if (client.phone) doc.text('Ph: '+client.phone, ML+3, y+11);
+      doc.text('Statement Date : '+todayStr, ML+CW-3, y+5.5, {align:'right'});
+      y += 16;
+
+      // ─── Table ────────────────────────────────────────────────
+      drawTableHeader();
+
+      let rowFlip = false;
+      purchases.forEach(function(p) {
+        const items    = p.lineItems || [];
+        const invNo    = p.invoiceNo || '—';
+        const invDate  = p.date      || '—';
+        const invTotal = p.grandTotal || 0;
+        const bg       = rowFlip ? [248,250,255] : [255,255,255];
+
+        if (items.length === 0) {
+          checkPage();
+          doc.setFillColor(...bg); doc.setDrawColor(210,210,210); doc.setLineWidth(0.1);
+          doc.rect(ML,y,CW,ROW_H,'FD');
+          ct(CX[0],y,COL[0],ROW_H,invDate,'normal',8);
+          ct(CX[1],y,COL[1],ROW_H,invNo,'normal',8);
+          ct(CX[6],y,COL[6],ROW_H,pdfINR(invTotal),'bold',8,'R');
+          y += ROW_H;
+        } else {
+          items.forEach(function(item,idx) {
+            checkPage();
+            doc.setFillColor(...bg); doc.setDrawColor(210,210,210); doc.setLineWidth(0.1);
+            doc.rect(ML,y,CW,ROW_H,'FD');
+            if (idx === 0) {
+              ct(CX[0],y,COL[0],ROW_H,invDate,'normal',8);
+              ct(CX[1],y,COL[1],ROW_H,invNo,'normal',8);
+            }
+            ct(CX[2],y,COL[2],ROW_H,item.service||'—','normal',8);
+            ct(CX[3],y,COL[3],ROW_H,item.unit||'','normal',8,'C');
+            ct(CX[4],y,COL[4],ROW_H,item.qty>0?(item.qtyDisplay||smartNum(item.qty)):'','normal',8,'R');
+            ct(CX[5],y,COL[5],ROW_H,item.rate>0?(item.rateDisplay||smartNum(item.rate)):'','normal',8,'R');
+            ct(CX[6],y,COL[6],ROW_H,item.amount>0?item.amount.toFixed(1):'','normal',8,'R');
+            y += ROW_H;
+          });
+          // Invoice subtotal (only if multiple items)
+          if (items.length > 1) {
+            checkPage();
+            doc.setFillColor(234,240,255); doc.setDrawColor(200,210,240); doc.setLineWidth(0.1);
+            doc.rect(ML,y,CW,ROW_H-1,'FD');
+            ct(CX[5],y,COL[5],ROW_H-1,'Invoice Total :','bold',8,'R');
+            ct(CX[6],y,COL[6],ROW_H-1,pdfINR(invTotal),'bold',9,'R');
+            y += ROW_H - 1;
+          }
+        }
+        rowFlip = !rowFlip;
+      });
+
+      // ─── Payments ─────────────────────────────────────────────
+      payments.forEach(function(py) {
+        checkPage();
+        doc.setFillColor(240,255,245); doc.setDrawColor(200,230,210); doc.setLineWidth(0.1);
+        doc.rect(ML,y,CW,ROW_H,'FD');
+        ct(CX[0],y,COL[0],ROW_H,py.date||'—','normal',8);
+        ct(CX[1],y,COL[1]+COL[2]+COL[3]+COL[4]+COL[5],ROW_H,'PAYMENT RECEIVED','bold',8,'L');
+        ct(CX[6],y,COL[6],ROW_H,'- '+pdfINR(py.amount||0),'bold',8,'R',[22,101,52]);
+        y += ROW_H;
+      });
+
+      // ─── Outstanding total bar ─────────────────────────────────
+      y += 3;
+      doc.setDrawColor(0,0,0); doc.setLineWidth(0.4); doc.line(ML,y,ML+CW,y); y += 1;
+      doc.setFillColor(26,58,107); doc.rect(ML,y,CW,11,'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(255,255,255);
+      doc.text('TOTAL OUTSTANDING :', ML+4, y+7);
+      doc.text(pdfINR(outstanding), ML+CW-3, y+7, {align:'right'}); y += 13;
+
+      doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(120,120,120);
+      doc.text('Computer generated statement — DM BEADS. Contact us for any discrepancies.', PW/2, y+4, {align:'center'});
+
+      const filename = (client.name||client.phone).replace(/\s+/g,'_')+'_Statement.pdf';
+      showPDFModal(doc, filename, null, 'Account Statement — '+(client.name||client.phone), null);
+    }
+
     async function reprintInvoice(purchase, client) {
       const { jsPDF } = window.jspdf;
       const PW = 210, ML = 15, MR = 15, CW = PW - ML - MR;
@@ -1954,7 +2115,7 @@
           '</div>' +
           '<div class="pdf-modal-footer">' +
             '<button class="btn-modal-download">&#8595;&nbsp; Download PDF</button>' +
-            '<button class="btn-modal-whatsapp">' +
+            (whatsappURL ? '<button class="btn-modal-whatsapp">' : '<span style="display:none">') +
               '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0">' +
                 '<path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15' +
                 '-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475' +
@@ -1970,8 +2131,8 @@
                 'A9.818 9.818 0 1112 21.818z"/>' +
               '</svg>' +
               'Send on WhatsApp' +
-            '</button>' +
-            '<button class="btn-modal-share">&#8679;&nbsp; Share bill image</button>' +
+            (whatsappURL ? '</button>' : '</span>') +
+            (whatsappURL ? '<button class="btn-modal-share">&#8679;&nbsp; Share bill image</button>' : '') +
           '</div>' +
         '</div>';
 
@@ -1995,7 +2156,7 @@
       });
 
       const waBtn = overlay.querySelector('.btn-modal-whatsapp');
-      waBtn.addEventListener('click', async function () {
+      if (waBtn) waBtn.addEventListener('click', async function () {
         // Try to copy bill image to clipboard so user can paste in WhatsApp
         if (billData && typeof ClipboardItem !== 'undefined' && navigator.clipboard && navigator.clipboard.write) {
           const origHTML = waBtn.innerHTML;
@@ -2013,11 +2174,12 @@
             waBtn.innerHTML = origHTML;
           }
         }
-        window.open(whatsappURL, '_blank', 'noopener');
+        if (whatsappURL) window.open(whatsappURL, '_blank', 'noopener');
       });
 
       // ── Share bill image ──
       const shareBtn = overlay.querySelector('.btn-modal-share');
+      if (!shareBtn) return;
       shareBtn.addEventListener('click', async function () {
         if (!billData) { alert('Image data not available.'); return; }
         shareBtn.disabled    = true;
@@ -2824,7 +2986,10 @@
         summaryHTML +
         payInputHTML +
         buildPaymentHistory() +
-        '<div class="purchases-section-title">Invoices</div>' +
+        '<div class="purchases-section-header">' +
+          '<div class="purchases-section-title">Invoices</div>' +
+          (purchases.length > 0 ? '<button class="btn-statement" id="btn-gen-statement">&#9112; Account Statement</button>' : '') +
+        '</div>' +
         purchaseTableHTML +
         '<button class="btn-clear-payment" id="btn-clear-payment">' +
           '&#10006;&nbsp; Mark Paid / Clear All Records' +
@@ -2841,6 +3006,12 @@
         document.getElementById('client-search-wrap').style.display = 'block';
         document.querySelectorAll('.client-item').forEach(function (el) { el.classList.remove('active'); });
       });
+
+      // ── Account Statement ──
+      const stmtBtn = document.getElementById('btn-gen-statement');
+      if (stmtBtn) {
+        stmtBtn.addEventListener('click', function () { generateStatement(client); });
+      }
 
       // ── Record Payment ──
       function getTodayDDMMYYYY() {
