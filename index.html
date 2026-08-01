@@ -761,25 +761,6 @@
     .btn-cancel-edit:hover  { background: #d1d5db; }
 
     /* Clear Payment button */
-    .btn-clear-payment {
-      width: 100%;
-      margin-top: 16px;
-      padding: 11px;
-      min-height: 46px;
-      background: #fff;
-      color: #dc2626;
-      border: 1.5px solid #fca5a5;
-      border-radius: 8px;
-      font-size: 0.84rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: background 0.15s, border-color 0.15s;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    .btn-clear-payment:hover    { background: #fee2e2; border-color: #ef4444; }
-    .btn-clear-payment:disabled { opacity: 0.5; cursor: default; }
-
     /* ── Billing summary: 3 stat blocks ── */
     .billing-summary {
       display: grid;
@@ -1109,47 +1090,6 @@
       transition: background 0.15s;
     }
     .btn-statement:hover { background: #122952; }
-
-    /* ── Clear-records confirm modal ── */
-    #clear-confirm-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
-      z-index: 100001; display: flex; align-items: center; justify-content: center;
-    }
-    .ccm-box {
-      background: #fff; border-radius: 14px;
-      box-shadow: 0 12px 40px rgba(0,0,0,0.25);
-      width: 360px; max-width: 95vw; overflow: hidden;
-    }
-    .ccm-header-warn  { background: #b91c1c; color: #fff; padding: 14px 18px; font-weight: 700; font-size: 0.95rem; }
-    .ccm-header-ok    { background: #15803d; color: #fff; padding: 14px 18px; font-weight: 700; font-size: 0.95rem; }
-    .ccm-body  { padding: 18px 18px 10px; }
-    .ccm-balance-warn {
-      background: #fef2f2; border: 1.5px solid #fca5a5; border-radius: 9px;
-      padding: 12px 14px; margin-bottom: 12px; text-align: center;
-    }
-    .ccm-balance-warn .ccm-amt { font-size: 1.4rem; font-weight: 800; color: #b91c1c; }
-    .ccm-balance-warn .ccm-lbl { font-size: 0.75rem; color: #7f1d1d; margin-top: 2px; }
-    .ccm-balance-ok {
-      background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 9px;
-      padding: 12px 14px; margin-bottom: 12px; text-align: center;
-    }
-    .ccm-balance-ok .ccm-amt { font-size: 1.4rem; font-weight: 800; color: #15803d; }
-    .ccm-balance-ok .ccm-lbl { font-size: 0.75rem; color: #14532d; margin-top: 2px; }
-    .ccm-msg { font-size: 0.82rem; color: #374151; margin-bottom: 6px; line-height: 1.5; }
-    .ccm-note { font-size: 0.74rem; color: #6b7280; }
-    .ccm-footer { display: flex; gap: 10px; padding: 14px 18px; }
-    .ccm-cancel  {
-      flex: 1; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 8px;
-      background: #fff; color: #374151; font-weight: 600; cursor: pointer; font-size: 0.88rem;
-    }
-    .ccm-confirm-warn {
-      flex: 2; padding: 10px; border: none; border-radius: 8px;
-      background: #b91c1c; color: #fff; font-weight: 700; cursor: pointer; font-size: 0.88rem;
-    }
-    .ccm-confirm-ok {
-      flex: 2; padding: 10px; border: none; border-radius: 8px;
-      background: #15803d; color: #fff; font-weight: 700; cursor: pointer; font-size: 0.88rem;
-    }
 
     /* ── Statement date-picker modal ── */
     #stmt-date-overlay {
@@ -1971,47 +1911,6 @@
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-    }
-
-    // ── Clear-records warning modal ──
-    function showClearConfirm(clientName, remaining, onConfirm) {
-      const existing = document.getElementById('clear-confirm-overlay');
-      if (existing) existing.remove();
-
-      const hasPending = remaining > 0;
-      const overlay = document.createElement('div');
-      overlay.id = 'clear-confirm-overlay';
-      overlay.innerHTML =
-        '<div class="ccm-box">' +
-          '<div class="' + (hasPending ? 'ccm-header-warn' : 'ccm-header-ok') + '">' +
-            (hasPending ? '⚠ Pending Balance Remaining' : '✓ Fully Collected') +
-          '</div>' +
-          '<div class="ccm-body">' +
-            '<div class="' + (hasPending ? 'ccm-balance-warn' : 'ccm-balance-ok') + '">' +
-              '<div class="ccm-amt">' + fmtINR(remaining) + '</div>' +
-              '<div class="ccm-lbl">' + (hasPending ? 'still uncollected from ' + clientName : 'fully received from ' + clientName) + '</div>' +
-            '</div>' +
-            '<div class="ccm-msg">' +
-              (hasPending
-                ? '<strong>You have NOT collected the full amount.</strong><br>Clearing now will archive this balance. You can view it later in Account Statement, but the active ledger will show ₹0.'
-                : 'All invoices have been paid. Safe to clear active records.') +
-            '</div>' +
-            '<div class="ccm-note">Full transaction history remains available in Account Statement.</div>' +
-          '</div>' +
-          '<div class="ccm-footer">' +
-            '<button class="ccm-cancel">Cancel</button>' +
-            '<button class="' + (hasPending ? 'ccm-confirm-warn' : 'ccm-confirm-ok') + '">' +
-              (hasPending ? 'Yes, Clear Anyway' : 'Yes, Clear Records') +
-            '</button>' +
-          '</div>' +
-        '</div>';
-      document.body.appendChild(overlay);
-
-      function close() { overlay.remove(); }
-      overlay.querySelector('.ccm-cancel').addEventListener('click', close);
-      overlay.addEventListener('click', function(e){ if (e.target === overlay) close(); });
-      overlay.querySelector(hasPending ? '.ccm-confirm-warn' : '.ccm-confirm-ok')
-        .addEventListener('click', function() { close(); onConfirm(); });
     }
 
     // ── Parse DD/MM/YYYY → Date (midnight local) ──
@@ -3383,10 +3282,7 @@
           '<div class="purchases-section-title">Invoices</div>' +
           (purchases.length > 0 || (client.clearedHistory && client.clearedHistory.length > 0) ? '<button class="btn-statement" id="btn-gen-statement">&#9112; Account Statement</button>' : '') +
         '</div>' +
-        purchaseTableHTML +
-        '<button class="btn-clear-payment" id="btn-clear-payment">' +
-          '&#10006;&nbsp; Mark Paid / Clear All Records' +
-        '</button>';
+        purchaseTableHTML;
 
       detailEl.style.display = 'block';
       document.getElementById('client-list').style.display        = 'none';
@@ -3524,45 +3420,6 @@
       }
 
       // ── Clear Payment — delete entire client row ──
-      document.getElementById('btn-clear-payment').addEventListener('click', function () {
-        const clearBtn   = this;
-        const totalBilled = purchases.reduce(function(s,p){ return s+(p.grandTotal||0); }, 0);
-        const totalPaid   = payments.reduce(function(s,p){  return s+(p.amount||0); }, 0);
-        const remaining   = Math.max(0, totalBilled - totalPaid);
-
-        showClearConfirm(client.name || client.phone, remaining, async function () {
-          clearBtn.disabled    = true;
-          clearBtn.textContent = 'Clearing…';
-          try {
-            const prevHistory = client.clearedHistory || [];
-            const newEntry    = {
-              clearedOn: getTodayDDMMYYYY(),
-              purchases: client.purchases || [],
-              payments:  client.payments  || []
-            };
-            const updatedClient = Object.assign({}, client, {
-              purchases:      [],
-              payments:       [],
-              outstanding:    0,
-              clearedHistory: prevHistory.concat([newEntry])
-            });
-            const { error } = await db.from('ledger')
-              .update({ client: updatedClient })
-              .eq('code',       workspaceCode)
-              .eq('client_key', client.phone);
-            if (error) throw error;
-            detailEl.style.display = 'none';
-            document.getElementById('client-list').style.display        = 'block';
-            document.getElementById('client-search-wrap').style.display = 'block';
-            await loadClients();
-          } catch (err) {
-            alert('Error: ' + err.message);
-            clearBtn.disabled    = false;
-            clearBtn.textContent = '✖ Mark Paid / Clear All Records';
-          }
-        });
-      });
-
       // ── Edit / Delete purchases via delegation on tbody ──
       if (!purchases.length) return;
 
