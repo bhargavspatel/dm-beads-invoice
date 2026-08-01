@@ -1095,6 +1095,52 @@
       transition: background 0.15s;
     }
     .btn-statement:hover { background: #122952; }
+
+    /* ── Statement date-picker modal ── */
+    #stmt-date-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      z-index: 100000; display: flex; align-items: center; justify-content: center;
+    }
+    .sdm-box {
+      background: #fff; border-radius: 14px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.22);
+      width: 340px; max-width: 95vw; overflow: hidden;
+    }
+    .sdm-header {
+      background: #1a3a6b; color: #fff; padding: 14px 18px;
+      display: flex; align-items: center; justify-content: space-between;
+      font-weight: 700; font-size: 0.95rem;
+    }
+    .sdm-close {
+      background: none; border: none; color: #fff; font-size: 1.3rem;
+      cursor: pointer; line-height: 1; padding: 0 4px;
+    }
+    .sdm-body { padding: 20px 18px; }
+    .sdm-hint { font-size: 0.78rem; color: #6b7280; margin-bottom: 14px; }
+    .sdm-row { margin-bottom: 14px; }
+    .sdm-row label {
+      display: block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; color: #1a3a6b; margin-bottom: 5px;
+    }
+    .sdm-row input[type="date"] {
+      width: 100%; padding: 9px 11px; border: 1.5px solid #c7d7f0;
+      border-radius: 8px; font-size: 0.9rem; color: #1a3a6b;
+      box-sizing: border-box; outline: none;
+    }
+    .sdm-row input[type="date"]:focus { border-color: #1a3a6b; }
+    .sdm-footer {
+      display: flex; gap: 10px; padding: 0 18px 18px;
+    }
+    .sdm-cancel {
+      flex: 1; padding: 10px; border: 1.5px solid #c7d7f0; border-radius: 8px;
+      background: #fff; color: #6b7280; font-weight: 600; cursor: pointer; font-size: 0.88rem;
+    }
+    .sdm-generate {
+      flex: 2; padding: 10px; border: none; border-radius: 8px;
+      background: #1a3a6b; color: #fff; font-weight: 700; cursor: pointer; font-size: 0.88rem;
+      transition: background 0.15s;
+    }
+    .sdm-generate:hover { background: #122952; }
   </style>
 </head>
 <body>
@@ -1835,13 +1881,88 @@
       document.body.removeChild(a);
     }
 
+    // ── Parse DD/MM/YYYY → Date (midnight local) ──
+    function parseDMY(s) {
+      if (!s) return null;
+      const p = s.split('/');
+      if (p.length !== 3) return null;
+      return new Date(parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0]));
+    }
+
+    // ── Statement date-range picker modal ──
+    function showStatementDatePicker(client) {
+      const existing = document.getElementById('stmt-date-overlay');
+      if (existing) existing.remove();
+
+      // Find the earliest transaction date across all history
+      const allPurch = [];
+      (client.clearedHistory || []).forEach(function(h){ (h.purchases||[]).forEach(function(p){ allPurch.push(p); }); });
+      (client.purchases || []).forEach(function(p){ allPurch.push(p); });
+
+      const today = new Date();
+      const toISO = today.toISOString().split('T')[0];
+      let fromISO = toISO;
+      allPurch.forEach(function(p) {
+        const d = parseDMY(p.date);
+        if (d) { const iso = d.toISOString().split('T')[0]; if (iso < fromISO) fromISO = iso; }
+      });
+
+      const overlay = document.createElement('div');
+      overlay.id = 'stmt-date-overlay';
+      overlay.innerHTML =
+        '<div class="sdm-box">' +
+          '<div class="sdm-header">' +
+            '<span>&#9112; Account Statement</span>' +
+            '<button class="sdm-close" aria-label="Close">&times;</button>' +
+          '</div>' +
+          '<div class="sdm-body">' +
+            '<div class="sdm-hint">Select the date range to include in the statement.</div>' +
+            '<div class="sdm-row"><label>From Date</label>' +
+              '<input type="date" id="stmt-from-date" value="' + fromISO + '" /></div>' +
+            '<div class="sdm-row"><label>To Date</label>' +
+              '<input type="date" id="stmt-to-date" value="' + toISO + '" /></div>' +
+          '</div>' +
+          '<div class="sdm-footer">' +
+            '<button class="sdm-cancel">Cancel</button>' +
+            '<button class="sdm-generate">&#8595; Download PDF</button>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(overlay);
+
+      function close() { overlay.remove(); }
+      overlay.querySelector('.sdm-close').addEventListener('click', close);
+      overlay.querySelector('.sdm-cancel').addEventListener('click', close);
+      overlay.addEventListener('click', function(e){ if (e.target === overlay) close(); });
+
+      overlay.querySelector('.sdm-generate').addEventListener('click', async function () {
+        const fromVal = document.getElementById('stmt-from-date').value;
+        const toVal   = document.getElementById('stmt-to-date').value;
+        if (!fromVal || !toVal) { alert('Please select both dates.'); return; }
+        const fromDate = new Date(fromVal);
+        const toDate   = new Date(toVal + 'T23:59:59');
+        if (fromDate > toDate) { alert('From date must be before To date.'); return; }
+        close();
+        await generateStatement(client, fromDate, toDate);
+      });
+    }
+
     // ── Reprint a stored invoice as PDF ──
-    async function generateStatement(client) {
+    async function generateStatement(client, fromDate, toDate) {
       const { jsPDF } = window.jspdf;
       const PW = 210, ML = 12, MR = 12, CW = PW - ML - MR;
       const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
-      // Merge cleared history + active records for full ledger view
+      // Date-range filter helper
+      function inRange(dateStr) {
+        if (!fromDate && !toDate) return true;
+        const d = parseDMY(dateStr);
+        if (!d) return true;
+        if (fromDate && d < fromDate) return false;
+        if (toDate   && d > toDate)   return false;
+        return true;
+      }
+
+      // Merge cleared history + active records, then apply date filter
       const allPurchases = [];
       const allPayments  = [];
       (client.clearedHistory || []).forEach(function(h) {
@@ -1851,16 +1972,29 @@
       (client.purchases || []).forEach(function(p) { allPurchases.push(p); });
       (client.payments  || []).forEach(function(p) { allPayments.push(p); });
 
-      const purchases = allPurchases;
-      const payments  = allPayments;
+      const purchases = allPurchases.filter(function(p){ return inRange(p.date); });
+      const payments  = allPayments.filter(function(p){  return inRange(p.date); });
 
-      // Outstanding = current active balance only (cleared history is already settled)
-      const activeBilled = (client.purchases || []).reduce(function(s,p){ return s+(p.grandTotal||0); }, 0);
-      const activePaid   = (client.payments  || []).reduce(function(s,p){ return s+(p.amount||0); }, 0);
-      const outstanding  = Math.max(0, activeBilled - activePaid);
+      if (purchases.length === 0 && payments.length === 0) {
+        alert('No transactions found in the selected date range.');
+        return;
+      }
+
+      // Outstanding = total in this date range (billed minus paid within range)
+      const rangeBilled = purchases.reduce(function(s,p){ return s+(p.grandTotal||0); }, 0);
+      const rangePaid   = payments.reduce(function(s,p){  return s+(p.amount||0); }, 0);
+      const outstanding = Math.max(0, rangeBilled - rangePaid);
 
       const d = new Date();
       const todayStr = String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+
+      // Date range label for header
+      function fmtDateObj(dt) {
+        return String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+dt.getFullYear();
+      }
+      const rangeLabel = fromDate && toDate
+        ? fmtDateObj(fromDate) + '  to  ' + fmtDateObj(toDate)
+        : 'All Transactions';
       const logoData = await loadImageAsBase64(LOGO_URL);
 
       // Columns: Date | InvNo | Description | Unit | Qty | Rate | Amount  (total = 186mm)
@@ -1906,13 +2040,15 @@
       doc.setLineWidth(0.4); doc.line(PW/2-tw/2,y+0.8,PW/2+tw/2,y+0.8); y+=7;
 
       // Client box
-      doc.setDrawColor(0,0,0); doc.setLineWidth(0.3); doc.rect(ML,y,CW,14);
+      doc.setDrawColor(0,0,0); doc.setLineWidth(0.3); doc.rect(ML,y,CW,18);
       doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(0,0,0);
       doc.text('TO :  '+(client.name||client.phone), ML+3, y+5.5);
       doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
       if (client.phone) doc.text('Ph: '+client.phone, ML+3, y+11);
       doc.text('Statement Date : '+todayStr, ML+CW-3, y+5.5, {align:'right'});
-      y += 16;
+      doc.setFont('helvetica','bold'); doc.setFontSize(8);
+      doc.text('Period : '+rangeLabel, ML+CW-3, y+13, {align:'right'});
+      y += 20;
 
       // ─── Table ────────────────────────────────────────────────
       drawTableHeader();
@@ -3013,7 +3149,7 @@
       // ── Account Statement ──
       const stmtBtn = document.getElementById('btn-gen-statement');
       if (stmtBtn) {
-        stmtBtn.addEventListener('click', function () { generateStatement(client); });
+        stmtBtn.addEventListener('click', function () { showStatementDatePicker(client); });
       }
 
       // ── Record Payment ──
