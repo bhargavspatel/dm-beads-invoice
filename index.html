@@ -2114,9 +2114,13 @@
       }
 
       // Outstanding = total in this date range (billed minus paid within range)
-      const rangeBilled = purchases.reduce(function(s,p){ return s+(p.grandTotal||0); }, 0);
-      const rangePaid   = payments.reduce(function(s,p){  return s+(p.amount||0); }, 0);
-      const outstanding = Math.max(0, rangeBilled - rangePaid);
+      // Always use the stored current balance — not a historical recalculation.
+      // After "Mark Paid / Clear All Records" the active outstanding is 0,
+      // which is what the client detail screen shows. The statement must match.
+      const outstanding = Math.max(0,
+        (client.purchases || []).reduce(function(s,p){ return s+(p.grandTotal||0); }, 0) -
+        (client.payments  || []).reduce(function(s,p){ return s+(p.amount||0); }, 0)
+      );
 
       const d = new Date();
       const todayStr = String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
