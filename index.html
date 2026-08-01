@@ -1841,11 +1841,23 @@
       const PW = 210, ML = 12, MR = 12, CW = PW - ML - MR;
       const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
-      const purchases = client.purchases || [];
-      const payments  = client.payments  || [];
-      const totalBilled   = purchases.reduce(function(s,p){ return s+(p.grandTotal||0); }, 0);
-      const totalPaid     = payments.reduce(function(s,p){  return s+(p.amount||0); }, 0);
-      const outstanding   = Math.max(0, totalBilled - totalPaid);
+      // Merge cleared history + active records for full ledger view
+      const allPurchases = [];
+      const allPayments  = [];
+      (client.clearedHistory || []).forEach(function(h) {
+        (h.purchases || []).forEach(function(p) { allPurchases.push(p); });
+        (h.payments  || []).forEach(function(p) { allPayments.push(p); });
+      });
+      (client.purchases || []).forEach(function(p) { allPurchases.push(p); });
+      (client.payments  || []).forEach(function(p) { allPayments.push(p); });
+
+      const purchases = allPurchases;
+      const payments  = allPayments;
+
+      // Outstanding = current active balance only (cleared history is already settled)
+      const activeBilled = (client.purchases || []).reduce(function(s,p){ return s+(p.grandTotal||0); }, 0);
+      const activePaid   = (client.payments  || []).reduce(function(s,p){ return s+(p.amount||0); }, 0);
+      const outstanding  = Math.max(0, activeBilled - activePaid);
 
       const d = new Date();
       const todayStr = String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
@@ -3124,7 +3136,8 @@
       // ── Clear Payment — delete entire client row ──
       document.getElementById('btn-clear-payment').addEventListener('click', async function () {
         const ok = confirm(
-          'Clear all records for ' + (client.name || client.phone) + '?\nThis can\'t be undone.'
+          'Mark all paid and clear active records for ' + (client.name || client.phone) + '?\n' +
+          'Full history stays saved and will still appear in Account Statement.'
         );
         if (!ok) return;
 
@@ -3132,7 +3145,22 @@
         this.textContent = 'Clearing…';
 
         try {
-          const { error } = await db.from('ledger').delete()
+          // Archive current purchases + payments; do NOT delete — history must survive
+          const prevHistory = client.clearedHistory || [];
+          const newEntry    = {
+            clearedOn: getTodayDDMMYYYY(),
+            purchases: client.purchases || [],
+            payments:  client.payments  || []
+          };
+          const updatedClient = Object.assign({}, client, {
+            purchases:      [],
+            payments:       [],
+            outstanding:    0,
+            clearedHistory: prevHistory.concat([newEntry])
+          });
+
+          const { error } = await db.from('ledger')
+            .update({ client: updatedClient })
             .eq('code',       workspaceCode)
             .eq('client_key', client.phone);
           if (error) throw error;
