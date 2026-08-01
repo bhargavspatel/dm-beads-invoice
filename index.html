@@ -1885,8 +1885,8 @@
       }
 
       // ─── Header ───────────────────────────────────────────────
-      const lsz = 22;
-      if (logoData) { doc.addImage(logoData,'PNG',(PW-lsz)/2,y,lsz,lsz); y += lsz+2; } else { y += 4; }
+      const lsz = 24;
+      if (logoData) { doc.addImage(logoData,'PNG',(PW-lsz)/2,y,lsz,lsz); y += lsz+6; } else { y += 4; }
       doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.text('DM BEADS',PW/2,y,{align:'center'}); y+=5;
       doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.text('VAIKUTH DHAM SOCIETY, HATHI MANDIR ROAD, KATARGAM',PW/2,y,{align:'center'}); y+=5;
       doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.text('ACCOUNT STATEMENT',PW/2,y,{align:'center'});
@@ -1937,15 +1937,6 @@
             ct(CX[6],y,COL[6],ROW_H,item.amount>0?item.amount.toFixed(1):'','normal',8,'R');
             y += ROW_H;
           });
-          // Invoice subtotal (only if multiple items)
-          if (items.length > 1) {
-            checkPage();
-            doc.setFillColor(234,240,255); doc.setDrawColor(200,210,240); doc.setLineWidth(0.1);
-            doc.rect(ML,y,CW,ROW_H-1,'FD');
-            ct(CX[5],y,COL[5],ROW_H-1,'Invoice Total :','bold',8,'R');
-            ct(CX[6],y,COL[6],ROW_H-1,pdfINR(invTotal),'bold',9,'R');
-            y += ROW_H - 1;
-          }
         }
         rowFlip = !rowFlip;
       });
