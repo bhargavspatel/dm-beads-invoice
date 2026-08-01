@@ -1192,7 +1192,14 @@
         </div>
         <div class="field">
           <label>Invoice Date <span class="opt">(DD/MM/YYYY)</span></label>
-          <input type="text" id="inv-date" placeholder="DD/MM/YYYY" maxlength="10" />
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input type="text" id="inv-date" placeholder="DD/MM/YYYY" maxlength="10" style="flex:1;" />
+            <input type="date" id="inv-date-picker" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;" tabindex="-1" />
+            <button type="button" id="inv-date-cal-btn" title="Pick date"
+              style="padding:0 11px;height:42px;border:1.5px solid #c7d7f0;border-radius:8px;background:#f0f4ff;cursor:pointer;font-size:1.1rem;color:#1a3a6b;flex-shrink:0;">
+              &#128197;
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1383,6 +1390,35 @@
       else if (v.length > 2) v = v.slice(0,2) + '/' + v.slice(2);
       this.value = v;
     });
+
+    // Calendar button: open native date picker, sync back to DD/MM/YYYY text field
+    (function () {
+      const calBtn    = document.getElementById('inv-date-cal-btn');
+      const picker    = document.getElementById('inv-date-picker');
+      const textField = document.getElementById('inv-date');
+
+      // Pre-fill picker with today when opened
+      calBtn.addEventListener('click', function () {
+        // Convert current DD/MM/YYYY text → YYYY-MM-DD for the picker
+        const parts = textField.value.split('/');
+        if (parts.length === 3 && parts[2].length === 4) {
+          picker.value = parts[2] + '-' + parts[1] + '-' + parts[0];
+        } else {
+          const t = new Date();
+          picker.value = t.getFullYear() + '-' +
+            String(t.getMonth()+1).padStart(2,'0') + '-' +
+            String(t.getDate()).padStart(2,'0');
+        }
+        picker.showPicker ? picker.showPicker() : picker.click();
+      });
+
+      // When user picks a date, write it back as DD/MM/YYYY
+      picker.addEventListener('change', function () {
+        if (!this.value) return;
+        const [y, m, day] = this.value.split('-');
+        textField.value = day + '/' + m + '/' + y;
+      });
+    }());
 
     // ─────────────────────────────────────────────
     // Indian rupee formatter — always returns ₹ string
