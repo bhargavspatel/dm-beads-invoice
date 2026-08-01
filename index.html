@@ -596,6 +596,20 @@
       text-align: center;
     }
     .btn-export-csv:hover { background: #dcfce7; }
+    .btn-print-all {
+      width: 100%;
+      margin-top: 8px;
+      padding: 9px 14px;
+      background: #f0f4ff;
+      color: #1a3a6b;
+      border: 1.5px solid #c7d7f0;
+      border-radius: 8px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+    }
+    .btn-print-all:hover { background: #dbeafe; }
 
     .client-search-wrap { margin-bottom: 10px; }
 
@@ -1333,6 +1347,7 @@
 
       <!-- Export backup -->
       <button class="btn-export-csv" id="btn-export-csv" style="display:none;">&#8595;&nbsp; Export Backup (CSV)</button>
+      <button class="btn-print-all"  id="btn-print-all"  style="display:none;">&#128438;&nbsp; Print All Clients</button>
     </div>
   </div><!-- /col-ledger -->
 
@@ -2316,6 +2331,120 @@
     }
 
     // ── Export all data as CSV ──
+    async function generateAllClientsPDF() {
+      if (!allClients || allClients.length === 0) { alert('No clients to print.'); return; }
+
+      const btn = document.getElementById('btn-print-all');
+      btn.disabled = true; btn.textContent = 'Generating…';
+
+      try {
+        const { jsPDF } = window.jspdf;
+        const PW = 210, ML = 12, MR = 12, CW = PW - ML - MR;
+        const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+        const logoData = await loadImageAsBase64(LOGO_URL);
+
+        const today = new Date();
+        const todayStr = String(today.getDate()).padStart(2,'0')+'/'+
+                         String(today.getMonth()+1).padStart(2,'0')+'/'+today.getFullYear();
+
+        const totalOutstanding = allClients.reduce(function(s,c){ return s+(c.outstanding||0); }, 0);
+
+        // ── Page header ──────────────────────────────────────────
+        let y = 8;
+        const lsz = 20;
+        if (logoData) { doc.addImage(logoData,'PNG',(PW-lsz)/2,y,lsz,lsz); y += lsz+5; } else { y += 4; }
+        doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor(0,0,0);
+        doc.text('DM BEADS', PW/2, y, {align:'center'}); y += 5;
+        doc.setFont('helvetica','normal'); doc.setFontSize(8);
+        doc.text('VAIKUTH DHAM SOCIETY, HATHI MANDIR ROAD, KATARGAM', PW/2, y, {align:'center'}); y += 5;
+        doc.setFont('helvetica','bold'); doc.setFontSize(12);
+        doc.text('CLIENT OUTSTANDING SUMMARY', PW/2, y, {align:'center'});
+        const tw = doc.getTextWidth('CLIENT OUTSTANDING SUMMARY');
+        doc.setLineWidth(0.4); doc.line(PW/2-tw/2, y+0.8, PW/2+tw/2, y+0.8); y += 6;
+        doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(80,80,80);
+        doc.text('Printed : ' + todayStr, ML, y);
+        doc.text('Total Clients : ' + allClients.length, PW/2, y, {align:'center'});
+        doc.text('Total Outstanding : ' + pdfINR(totalOutstanding), ML+CW, y, {align:'right'});
+        y += 7;
+
+        // ── Table header ─────────────────────────────────────────
+        // Cols: No | Name | Phone | Last Txn Date | Outstanding
+        const COL = [10, 62, 36, 32, 46];
+        const CX  = [ML];
+        for (let k = 0; k < COL.length-1; k++) CX.push(CX[k]+COL[k]);
+        const ROW_H = 8;
+
+        function drawHeader() {
+          const hdrs = ['No.', 'Client Name', 'Phone', 'Last Invoice', 'Outstanding'];
+          doc.setFillColor(26,58,107);
+          doc.rect(ML, y, CW, ROW_H, 'F');
+          const aligns = ['C','L','L','C','R'];
+          for (let k = 0; k < COL.length; k++) {
+            doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(255,255,255);
+            const mid = y + ROW_H/2 + 1.8;
+            if (aligns[k]==='C') doc.text(hdrs[k], CX[k]+COL[k]/2, mid, {align:'center'});
+            else if (aligns[k]==='R') doc.text(hdrs[k], CX[k]+COL[k]-2, mid, {align:'right'});
+            else doc.text(hdrs[k], CX[k]+2, mid);
+          }
+          y += ROW_H;
+        }
+
+        drawHeader();
+
+        allClients.forEach(function(c, idx) {
+          if (y + ROW_H > 277) { doc.addPage(); y = 15; drawHeader(); }
+
+          // Last invoice date
+          const purchases = c.purchases || [];
+          let lastDate = '—';
+          if (purchases.length > 0) {
+            lastDate = purchases[purchases.length - 1].date || '—';
+          }
+
+          const bg = idx % 2 === 0 ? [255,255,255] : [247,250,255];
+          doc.setFillColor(...bg);
+          doc.setDrawColor(220,220,220); doc.setLineWidth(0.1);
+          doc.rect(ML, y, CW, ROW_H, 'FD');
+
+          doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(0,0,0);
+          const mid = y + ROW_H/2 + 1.8;
+
+          // No.
+          doc.text(String(idx+1), CX[0]+COL[0]/2, mid, {align:'center'});
+          // Name
+          doc.text(doc.splitTextToSize(c.name || '—', COL[1]-4)[0], CX[1]+2, mid);
+          // Phone
+          doc.text(c.phone || '—', CX[2]+2, mid);
+          // Last invoice date
+          doc.text(lastDate, CX[3]+COL[3]/2, mid, {align:'center'});
+          // Outstanding
+          const amt = c.outstanding || 0;
+          if (amt > 0) {
+            doc.setFont('helvetica','bold'); doc.setTextColor(185,28,28);
+          } else {
+            doc.setFont('helvetica','normal'); doc.setTextColor(80,80,80);
+          }
+          doc.text(pdfINR(amt), CX[4]+COL[4]-2, mid, {align:'right'});
+
+          y += ROW_H;
+        });
+
+        // ── Total row ────────────────────────────────────────────
+        y += 1;
+        doc.setLineWidth(0.4); doc.setDrawColor(0,0,0); doc.line(ML, y, ML+CW, y); y += 1;
+        doc.setFillColor(26,58,107); doc.rect(ML, y, CW, 10, 'F');
+        doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(255,255,255);
+        doc.text('TOTAL OUTSTANDING', ML+4, y+6.5);
+        doc.text(pdfINR(totalOutstanding), ML+CW-3, y+6.5, {align:'right'});
+
+        const filename = 'DM_BEADS_All_Clients_' + todayStr.replace(/\//g,'-') + '.pdf';
+        showPDFModal(doc, filename, null, 'All Clients — ' + todayStr, null);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '&#128438;&nbsp; Print All Clients';
+      }
+    }
+
     function exportCSV() {
       const rows = [['Type','Client Name','Phone','Date','Invoice No','Description','Amount','Outstanding']];
       allClients.forEach(function (c) {
@@ -3113,10 +3242,11 @@
     }
 
     function renderClientList(clients) {
-      const listEl   = document.getElementById('client-list');
-      const totalBar = document.getElementById('ledger-total-bar');
-      const totalAmt = document.getElementById('ledger-total-amount');
+      const listEl    = document.getElementById('client-list');
+      const totalBar  = document.getElementById('ledger-total-bar');
+      const totalAmt  = document.getElementById('ledger-total-amount');
       const exportBtn = document.getElementById('btn-export-csv');
+      const printBtn  = document.getElementById('btn-print-all');
 
       listEl.innerHTML = '';
 
@@ -3124,6 +3254,7 @@
         listEl.innerHTML = '<div class="ledger-empty">No clients yet. Save an invoice to begin.</div>';
         totalBar.style.display  = 'none';
         exportBtn.style.display = 'none';
+        printBtn.style.display  = 'none';
         return;
       }
 
@@ -3132,6 +3263,7 @@
       totalAmt.textContent    = fmtINR(total);
       totalBar.style.display  = 'flex';
       exportBtn.style.display = 'block';
+      printBtn.style.display  = 'block';
 
       clients.forEach(function (c) {
         const item = document.createElement('div');
@@ -3650,6 +3782,7 @@
     }
 
     document.getElementById('btn-export-csv').addEventListener('click', exportCSV);
+    document.getElementById('btn-print-all').addEventListener('click', generateAllClientsPDF);
     document.getElementById('btn-open').addEventListener('click', unlock);
 
     const _codeInput = document.getElementById('code-input');
