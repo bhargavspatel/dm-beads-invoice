@@ -14,6 +14,10 @@
   <!-- html2canvas — renders HTML to a PNG image for bill sharing -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
+  <!-- Noto Sans Gujarati — the OS often has no Gujarati font, so the PDF
+       notice is rendered with this web font instead (see buildGujaratiNoticeImage) -->
+  <link id="gujFontLink" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Gujarati:wght@400;700&display=swap" />
+
   <style>
     /* ── Reset ── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1637,6 +1641,59 @@
       });
     }
 
+    // Resolves once the Google Fonts stylesheet has parsed, so the
+    // @font-face rule actually exists before document.fonts.load() looks
+    // for it (otherwise the load call silently matches nothing).
+    const gujFontCssReady = new Promise(function (resolve) {
+      const link = document.getElementById('gujFontLink');
+      if (!link) return resolve();
+      if (link.sheet) return resolve();
+      link.addEventListener('load', function () { resolve(); });
+      link.addEventListener('error', function () { resolve(); });
+      setTimeout(resolve, 4000); // don't block PDF generation forever if offline
+    });
+
+    // jsPDF's built-in fonts also have no Gujarati glyphs, so the notice
+    // below is rendered with the browser's Gujarati font onto a canvas and
+    // embedded as a PNG image instead of drawn with doc.text().
+    async function buildGujaratiNoticeImage(CW) {
+      const lines = [
+        '1. માલ માં કોઈ પણ જાતની કલર ગેરંટી આવશે નહી.',
+        '2. મશીન માં નાખતી વખતે ચેક કરી ને નાખવૂ પાછળ થી કોઈ દલીલ સાંભળવા માં આવશે નહી.',
+        '3. રોજ ગોલ્ડ, સિલ્વર, ગોલ્ડ બધી આઈટમ ચાઈના ઓરિજિનલ આવશે 100 % ગેરંટી.'
+      ];
+      const scale     = 8; // px per mm — keeps the embedded PNG crisp
+      const widthPx   = Math.round(CW * scale);
+      const fontMm    = 4.2; // ~16px equivalent
+      const fontPx    = Math.round(fontMm * scale);
+      const lineHPx   = Math.round((fontMm + 1.6) * scale);
+      const padPx     = Math.round(1.5 * scale);
+      const heightPx  = lineHPx * lines.length + padPx * 2;
+
+      const fontFamily = 'Noto Sans Gujarati';
+      const fontSpec    = '700 ' + fontPx + 'px "' + fontFamily + '"';
+      try {
+        await gujFontCssReady;
+        await document.fonts.load(fontSpec, lines.join(''));
+        await document.fonts.ready;
+      } catch (e) { /* fall through to system font fallback below */ }
+
+      const canvas = document.createElement('canvas');
+      canvas.width  = widthPx;
+      canvas.height = heightPx;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, widthPx, heightPx);
+      ctx.fillStyle = '#000000';
+      ctx.font = '700 ' + fontPx + 'px "' + fontFamily + '","Nirmala UI","Shruti",sans-serif';
+      ctx.textBaseline = 'top';
+      lines.forEach(function (line, i) {
+        ctx.fillText(line, padPx, padPx + i * lineHPx);
+      });
+
+      return { dataUrl: canvas.toDataURL('image/png'), heightMm: heightPx / scale };
+    }
+
     function amountInWords(amount) {
       const ONES = ['','ONE','TWO','THREE','FOUR','FIVE','SIX','SEVEN','EIGHT','NINE',
                     'TEN','ELEVEN','TWELVE','THIRTEEN','FOURTEEN','FIFTEEN','SIXTEEN',
@@ -1731,6 +1788,15 @@
           '<div style="text-align:right;min-width:180px;padding-top:8px;border-top:1px solid #9ca3af;">' +
             '<div style="font-size:11px;color:#6b7280;">Authorised Signature</div>' +
             '<div style="font-size:13px;font-weight:700;color:#1a3a6b;margin-top:3px;">DM BEADS</div>' +
+          '</div>' +
+        '</div>';
+
+      const gujaratiNotice =
+        '<div style="padding:12px 14px;border-top:1px solid #999;">' +
+          '<div style="font-size:16px;font-weight:700;color:#000;line-height:1.7;">' +
+            '1. માલ માં કોઈ પણ જાતની કલર ગેરંટી આવશે નહી.<br>' +
+            '2. મશીન માં નાખતી વખતે ચેક કરી ને નાખવૂ પાછળ થી કોઈ દલીલ સાંભળવા માં આવશે નહી.<br>' +
+            '3. રોજ ગોલ્ડ, સિલ્વર, ગોલ્ડ બધી આઈટમ ચાઈના ઓરિજિનલ આવશે 100 % ગેરંટી.' +
           '</div>' +
         '</div>';
 
@@ -1831,6 +1897,7 @@
               '</td>' +
             '</tr>' +
           '</table>' +
+          gujaratiNotice +
         '</div>';
 
       } else {
@@ -1870,6 +1937,7 @@
             '<span style="font-size:13px;font-weight:700;color:' + remClr + ';">Remaining Balance</span>' +
             '<span style="font-size:17px;font-weight:800;color:' + remClr + ';">' + remText + '</span>' +
           '</div>' +
+          gujaratiNotice +
           sig +
           '<div style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:10px 20px;text-align:center;">' +
             '<span style="font-size:11px;color:#9ca3af;">This is a computer-generated payment receipt.</span>' +
@@ -2226,6 +2294,9 @@
       doc.line(fsx,y,fsx,y+rH); doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.text('Remark  :-',ML+2,y+7);
       doc.setFontSize(8.5); doc.text('E&OE',ML+CW-2,y+6,{align:'right'}); doc.setFont('helvetica','bold'); doc.text('For DM BEADS',ML+CW-2,y+13,{align:'right'});
       y+=rH; doc.setLineWidth(0.5); doc.line(ML,y,ML+CW,y); doc.line(ML,8,ML,y); doc.line(ML+CW,8,ML+CW,y);
+
+      const gujNotice = await buildGujaratiNoticeImage(CW);
+      doc.addImage(gujNotice.dataUrl, 'PNG', ML, y+4, CW, gujNotice.heightMm);
 
       const waMsg='Invoice '+invNumber+' for '+clientName+'\nDate: '+invDate+'\nTotal: Rs.'+grandTotal.toFixed(2);
       const waURL=buildWhatsAppURL(clientPhone,waMsg);
@@ -2632,6 +2703,11 @@
       );
       y += 22;
 
+      // ── Gujarati notice ──
+      const gujNotice = await buildGujaratiNoticeImage(CW);
+      doc.addImage(gujNotice.dataUrl, 'PNG', ML, y, CW, gujNotice.heightMm);
+      y += gujNotice.heightMm + 6;
+
       // ── Signature area ──
       const sigX2 = ML + CW;
       const sigX1 = sigX2 - 58;
@@ -2952,6 +3028,10 @@
         doc.line(ML, y, ML + CW, y);  // bottom
         doc.line(ML, 8, ML, y);        // left
         doc.line(ML + CW, 8, ML + CW, y); // right
+
+        // Gujarati notice
+        const gujNotice = await buildGujaratiNoticeImage(CW);
+        doc.addImage(gujNotice.dataUrl, 'PNG', ML, y + 4, CW, gujNotice.heightMm);
 
         const invMsg  = 'Hello ' + clientName + ', here is your Sale Invoice from DM BEADS.' +
           '\nInvoice No: ' + invNumber +
