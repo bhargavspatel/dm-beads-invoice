@@ -2212,6 +2212,10 @@
       doc.text('TOTAL OUTSTANDING :', ML+4, y+7);
       doc.text(pdfINR(outstanding), ML+CW-3, y+7, {align:'right'}); y += 13;
 
+      const gujNotice = await buildGujaratiNoticeImage(CW);
+      doc.addImage(gujNotice.dataUrl, 'PNG', ML, y + 2, CW, gujNotice.heightMm);
+      y += gujNotice.heightMm + 8;
+
       doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(120,120,120);
       doc.text('Computer generated statement — DM BEADS. Contact us for any discrepancies.', PW/2, y+4, {align:'center'});
 
