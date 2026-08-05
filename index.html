@@ -640,6 +640,25 @@
     .ci-phone  { font-size: 0.74rem; color: var(--gray-muted); margin-top: 2px; }
     .ci-amount { font-weight: 700; color: var(--blue-dark); font-size: 0.88rem; white-space: nowrap; margin-left: 10px; }
 
+    .ci-right  { display: flex; align-items: center; gap: 6px; margin-left: 10px; }
+    .ci-delete {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--gray-muted);
+      font-size: 1rem;
+      line-height: 1;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+    }
+    .ci-delete:hover { background: #fee2e2; border-color: #fecaca; color: #dc2626; }
+
     .ledger-empty {
       text-align: center;
       padding: 24px 8px;
@@ -3261,13 +3280,47 @@
             '<div class="ci-name">' + (c.name || c.phone) + '</div>' +
             '<div class="ci-phone">' + c.phone + '</div>' +
           '</div>' +
-          '<div class="ci-amount">' + fmtINR(c.outstanding) + '</div>';
+          '<div class="ci-right">' +
+            '<div class="ci-amount">' + fmtINR(c.outstanding) + '</div>' +
+            '<button type="button" class="ci-delete" title="Delete client" aria-label="Delete client">&times;</button>' +
+          '</div>';
         item.addEventListener('click', function () {
           loadClientIntoForm(c);
           showClientDetail(c);
         });
+        item.querySelector('.ci-delete').addEventListener('click', function (e) {
+          e.stopPropagation();
+          deleteClient(c);
+        });
         listEl.appendChild(item);
       });
+    }
+
+    // ── Delete a client — only allowed once their outstanding balance is zero ──
+    async function deleteClient(client) {
+      if ((client.outstanding || 0) !== 0) {
+        alert(
+          'Cannot delete ' + (client.name || client.phone) + ' — outstanding balance is ' +
+          fmtINR(client.outstanding) + '. Clear the balance to ₹0 before deleting.'
+        );
+        return;
+      }
+
+      if (!confirm('Delete ' + (client.name || client.phone) + '? This permanently removes all their invoice and payment history.')) {
+        return;
+      }
+
+      const { error } = await db.from('ledger').delete()
+        .eq('code', workspaceCode).eq('client_key', client.phone);
+
+      if (error) { alert('Delete failed: ' + error.message); return; }
+
+      const activeItem = document.querySelector('.client-item.active');
+      if (activeItem && activeItem.dataset.phone === client.phone) {
+        document.getElementById('client-detail').style.display = 'none';
+      }
+
+      await loadClients();
     }
 
     // ── Show client detail with Record Payment flow ──
