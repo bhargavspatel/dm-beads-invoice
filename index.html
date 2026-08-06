@@ -2257,8 +2257,10 @@
 
     async function reprintInvoice(purchase, client) {
       const { jsPDF } = window.jspdf;
-      const PW = 210, ML = 15, MR = 15, CW = PW - ML - MR;
-      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+      // Half of an A4 sheet (210 x 297mm / 2 = 210 x 148.5mm, ≈ 8.27 x 5.85in)
+      // so two invoices print stacked on one A4 page — matches downloadPDF().
+      const PW = 210, PH = 148.5, ML = 15, MR = 15, CW = PW - ML - MR;
+      const doc = new jsPDF({ unit: 'mm', format: [PW, PH], orientation: 'l' });
       doc.setDrawColor(0,0,0); doc.setTextColor(0,0,0);
 
       const clientName  = client.name  || '';
@@ -2275,28 +2277,29 @@
       // Reuse same drawing helpers as the live invoice PDF
       const LW = 0.3;
       function cellRect(x,y,w,h,fill){ doc.setLineWidth(LW); if(fill){doc.setFillColor(...fill);doc.rect(x,y,w,h,'FD');}else{doc.rect(x,y,w,h);} }
-      function cellText(x,y,w,h,text,fs,sz,al){ if(!text&&text!==0)return; doc.setFont('helvetica',fs||'normal'); doc.setFontSize(sz||9); doc.setTextColor(0,0,0); const mid=y+h/2+1.8; if(al==='R')doc.text(String(text),x+w-2,mid,{align:'right'}); else if(al==='C')doc.text(String(text),x+w/2,mid,{align:'center'}); else doc.text(String(text),x+2,mid); }
+      function cellText(x,y,w,h,text,fs,sz,al){ if(!text&&text!==0)return; const fsz=sz||9; doc.setFont('helvetica',fs||'normal'); doc.setFontSize(fsz); doc.setTextColor(0,0,0); const mid=y+h/2+fsz*0.2; if(al==='R')doc.text(String(text),x+w-2,mid,{align:'right'}); else if(al==='C')doc.text(String(text),x+w/2,mid,{align:'center'}); else doc.text(String(text),x+2,mid); }
 
-      let y = 8;
-      const logoSz = 26;
-      if(logoData){ doc.addImage(logoData,'PNG',(PW-logoSz)/2,y,logoSz,logoSz); y+=logoSz+6; } else { y+=4; }
-      doc.setFont('helvetica','bold'); doc.setFontSize(17); doc.text('DM BEADS',PW/2,y,{align:'center'}); y+=6;
-      doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.text('VAIKUTH DHAM SOCIETY, HATHI MANDIR ROAD, KATARGAM',PW/2,y,{align:'center'}); y+=7;
-      doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.text('INVOICE',PW/2,y,{align:'center'});
-      const iw=doc.getTextWidth('INVOICE'); doc.setLineWidth(0.5); doc.line(PW/2-iw/2,y+0.8,PW/2+iw/2,y+0.8); y+=6;
-      doc.line(ML,8,ML+CW,8);
+      let y = 5;
+      const topY = y;
+      const logoSz = 15;
+      if(logoData){ doc.addImage(logoData,'PNG',(PW-logoSz)/2,y,logoSz,logoSz); y+=logoSz+5; } else { y+=3; }
+      doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.text('DM BEADS',PW/2,y,{align:'center'}); y+=4;
+      doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.text('VAIKUTH DHAM SOCIETY, HATHI MANDIR ROAD, KATARGAM',PW/2,y,{align:'center'}); y+=4.5;
+      doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.text('INVOICE',PW/2,y,{align:'center'});
+      const iw=doc.getTextWidth('INVOICE'); doc.setLineWidth(0.5); doc.line(PW/2-iw/2,y+0.6,PW/2+iw/2,y+0.6); y+=4;
+      doc.line(ML,topY,ML+CW,topY);
       doc.setLineWidth(0.5); doc.line(ML,y,ML+CW,y);
-      const sx=ML+108, toH=18;
-      doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.text('TO,   '+clientName,ML+2,y+6.5);
-      doc.setFont('helvetica','normal'); doc.setFontSize(8.5); if(clientPhone) doc.text('Ph: '+clientPhone,ML+2,y+12);
+      const sx=ML+108, toH=11;
+      doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.text('TO,   '+clientName,ML+2,y+4.5);
+      doc.setFont('helvetica','normal'); doc.setFontSize(6.5); if(clientPhone) doc.text('Ph: '+clientPhone,ML+2,y+8.3);
       doc.setLineWidth(0.3); doc.line(sx,y,sx,y+toH);
-      doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.text('Inv. No  :-',sx+3,y+6); doc.setFont('helvetica','bold'); doc.text(invNumber,sx+32,y+6);
-      doc.setFont('helvetica','normal'); doc.text('Date  :-',sx+3,y+13); doc.setFont('helvetica','bold'); doc.text(invDate,sx+32,y+13);
+      doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.text('Inv. No  :-',sx+3,y+4); doc.setFont('helvetica','bold'); doc.text(invNumber,sx+32,y+4);
+      doc.setFont('helvetica','normal'); doc.text('Date  :-',sx+3,y+8); doc.setFont('helvetica','bold'); doc.text(invDate,sx+32,y+8);
       y+=toH; doc.setLineWidth(0.5); doc.line(ML,y,ML+CW,y);
 
       const COL=[10,68,18,22,28,34]; const CX=[ML]; for(let k=0;k<COL.length-1;k++) CX.push(CX[k]+COL[k]);
-      const ROW_H=8;
-      for(let k=0;k<COL.length;k++){ cellRect(CX[k],y,COL[k],ROW_H,[224,224,224]); doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(0,0,0); const hh=['Sr\nNo','Description','Unit','Qty','Rate','Amount'][k].split('\n'); if(hh.length>1){doc.text(hh[0],CX[k]+COL[k]/2,y+3.2,{align:'center'});doc.text(hh[1],CX[k]+COL[k]/2,y+6.5,{align:'center'});}else{doc.text(hh[0],CX[k]+COL[k]/2,y+ROW_H/2+1.8,{align:'center'});} }
+      const ROW_H=4.6;
+      for(let k=0;k<COL.length;k++){ cellRect(CX[k],y,COL[k],ROW_H,[224,224,224]); doc.setFont('helvetica','bold'); doc.setFontSize(6); doc.setTextColor(0,0,0); const hh=['Sr\nNo','Description','Unit','Qty','Rate','Amount'][k].split('\n'); if(hh.length>1){doc.text(hh[0],CX[k]+COL[k]/2,y+1.9,{align:'center'});doc.text(hh[1],CX[k]+COL[k]/2,y+3.9,{align:'center'});}else{doc.text(hh[0],CX[k]+COL[k]/2,y+ROW_H/2+1.2,{align:'center'});} }
       y+=ROW_H;
       const MIN_R=10, totalRows=Math.max(lineItems.length,MIN_R);
       for(let i=0;i<totalRows;i++){
@@ -2305,35 +2308,35 @@
           cellRect(CX[k],y,COL[k],ROW_H,bg);
           if(row){ let txt='',al='L'; switch(k){
             case 0:txt=String(i+1);al='C';break;
-            case 1:doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(0,0,0);doc.text(doc.splitTextToSize(row.service,COL[1]-4)[0],CX[1]+2,y+ROW_H/2+1.8);continue;
+            case 1:doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(0,0,0);doc.text(doc.splitTextToSize(row.service,COL[1]-4)[0],CX[1]+2,y+ROW_H/2+1.2);continue;
             case 2:txt=row.unit||'';al='C';break;
             case 3:txt=row.qty>0?(row.qtyDisplay||smartNum(row.qty)):'';al='R';break;
             case 4:txt=row.rate>0?(row.rateDisplay||smartNum(row.rate)):'';al='R';break;
             case 5:txt=row.amount>0?row.amount.toFixed(1):'';al='R';break;
-          } cellText(CX[k],y,COL[k],ROW_H,txt,'normal',9,al); }
+          } cellText(CX[k],y,COL[k],ROW_H,txt,'normal',6.5,al); }
         } y+=ROW_H;
       }
-      for(let k=0;k<COL.length;k++){ cellRect(CX[k],y,COL[k],ROW_H,[240,240,240]); if(k===3&&qtyTotal>0) cellText(CX[k],y,COL[k],ROW_H,qtyTotal.toFixed(2),'bold',9,'R'); }
+      for(let k=0;k<COL.length;k++){ cellRect(CX[k],y,COL[k],ROW_H,[240,240,240]); if(k===3&&qtyTotal>0) cellText(CX[k],y,COL[k],ROW_H,qtyTotal.toFixed(2),'bold',6.5,'R'); }
       y+=ROW_H;
       doc.setLineWidth(0.5); doc.line(ML,y,ML+CW,y);
-      const AH=9, fsx=ML+108;
-      const wl=doc.splitTextToSize(amountInWords(grandTotal),104); doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(0,0,0); doc.text(wl,ML+2,y+7);
+      const AH=5.2, fsx=ML+108;
+      const wl=doc.splitTextToSize(amountInWords(grandTotal),104); doc.setFont('helvetica','bold'); doc.setFontSize(6); doc.setTextColor(0,0,0); doc.text(wl,ML+2,y+4.2);
       doc.setLineWidth(0.3); doc.line(fsx,y,fsx,y+AH*3+1);
-      doc.setFont('helvetica','normal'); doc.setFontSize(9);
-      doc.text('Basic Amount  :-',fsx+3,y+AH/2+1.8); doc.text(grandTotal.toFixed(1),ML+CW-2,y+AH/2+1.8,{align:'right'});
+      doc.setFont('helvetica','normal'); doc.setFontSize(6.5);
+      doc.text('Basic Amount  :-',fsx+3,y+AH/2+1.3); doc.text(grandTotal.toFixed(1),ML+CW-2,y+AH/2+1.3,{align:'right'});
       doc.setLineWidth(0.2); doc.line(fsx,y+AH,ML+CW,y+AH);
       const rot=roundOff===0?'-':(roundOff>0?'+':'')+roundOff.toFixed(1);
-      doc.text('Round Off  :-',fsx+3,y+AH+AH/2+1.8); doc.text(rot,ML+CW-2,y+AH+AH/2+1.8,{align:'right'});
+      doc.text('Round Off  :-',fsx+3,y+AH+AH/2+1.3); doc.text(rot,ML+CW-2,y+AH+AH/2+1.3,{align:'right'});
       doc.line(fsx,y+AH*2,ML+CW,y+AH*2);
-      doc.setFont('helvetica','bold'); doc.text('Total Amount  :-',fsx+3,y+AH*2+AH/2+1.8); doc.text(totalAmt.toFixed(1),ML+CW-2,y+AH*2+AH/2+1.8,{align:'right'});
+      doc.setFont('helvetica','bold'); doc.text('Total Amount  :-',fsx+3,y+AH*2+AH/2+1.3); doc.text(totalAmt.toFixed(1),ML+CW-2,y+AH*2+AH/2+1.3,{align:'right'});
       y+=AH*3+1; doc.setLineWidth(0.4); doc.line(ML,y,ML+CW,y);
       const remarkColW = fsx-ML-4;
-      const gujNotice   = await buildGujaratiNoticeImage(remarkColW);
-      const rH = Math.max(16, 8+gujNotice.heightMm+3);
-      doc.line(fsx,y,fsx,y+rH); doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.text('Remark  :-',ML+2,y+6);
-      doc.addImage(gujNotice.dataUrl,'PNG',ML+2,y+8,remarkColW,gujNotice.heightMm);
-      doc.setFontSize(8.5); doc.text('E&OE',ML+CW-2,y+6,{align:'right'}); doc.setFont('helvetica','bold'); doc.text('For DM BEADS',ML+CW-2,y+13,{align:'right'});
-      y+=rH; doc.setLineWidth(0.5); doc.line(ML,y,ML+CW,y); doc.line(ML,8,ML,y); doc.line(ML+CW,8,ML+CW,y);
+      const gujNotice   = await buildGujaratiNoticeImage(remarkColW, 2.3);
+      const rH = Math.max(10, 5+gujNotice.heightMm+2);
+      doc.line(fsx,y,fsx,y+rH); doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.text('Remark  :-',ML+2,y+3.8);
+      doc.addImage(gujNotice.dataUrl,'PNG',ML+2,y+5,remarkColW,gujNotice.heightMm);
+      doc.setFontSize(6); doc.text('E&OE',ML+CW-2,y+4,{align:'right'}); doc.setFont('helvetica','bold'); doc.text('For DM BEADS',ML+CW-2,y+8,{align:'right'});
+      y+=rH; doc.setLineWidth(0.5); doc.line(ML,y,ML+CW,y); doc.line(ML,topY,ML,y); doc.line(ML+CW,topY,ML+CW,y);
 
       const waMsg='Invoice '+invNumber+' for '+clientName+'\nDate: '+invDate+'\nTotal: Rs.'+grandTotal.toFixed(2);
       const waURL=buildWhatsAppURL(clientPhone,waMsg);
@@ -2798,11 +2801,13 @@
         const { jsPDF } = window.jspdf;
 
         // ── Page constants ──
-        const PW = 210, PH = 297;
+        // Half of an A4 sheet (210 x 297mm / 2 = 210 x 148.5mm, ≈ 8.27 x 5.85in)
+        // so two invoices print stacked on one A4 page.
+        const PW = 210, PH = 148.5;
         const ML = 15, MR = 15;
         const CW = PW - ML - MR;
 
-        const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+        const doc = new jsPDF({ unit: 'mm', format: [PW, PH], orientation: 'l' });
         doc.setDrawColor(0, 0, 0);
         doc.setTextColor(0, 0, 0);
 
@@ -2854,10 +2859,11 @@
         }
         function cellText(x, y, w, h, text, fontStyle, fontSize, align) {
           if (!text && text !== 0) return;
+          const fs = fontSize || 9;
           doc.setFont('helvetica', fontStyle || 'normal');
-          doc.setFontSize(fontSize || 9);
+          doc.setFontSize(fs);
           doc.setTextColor(0,0,0);
-          const mid = y + h / 2 + 1.8;
+          const mid = y + h / 2 + fs * 0.2;
           if (align === 'R') {
             doc.text(String(text), x + w - 2, mid, { align: 'right' });
           } else if (align === 'C') {
@@ -2867,40 +2873,41 @@
           }
         }
 
-        let y = 8;
+        let y = 5;
+        const topY = y;
 
         // ──────────────────────────────────────────────
         // HEADER — Logo + DM BEADS + Address + INVOICE
         // ──────────────────────────────────────────────
-        const logoSz = 26;
+        const logoSz = 15;
         if (logoData) {
           doc.addImage(logoData, 'PNG', (PW - logoSz) / 2, y, logoSz, logoSz);
-          y += logoSz + 6;
+          y += logoSz + 5;
         } else {
-          y += 4;
+          y += 3;
         }
 
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(17);
+        doc.setFontSize(12);
         doc.text(SELLER_NAME, PW / 2, y, { align: 'center' });
-        y += 6;
+        y += 4;
 
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8.5);
+        doc.setFontSize(6.5);
         doc.text(SELLER_ADDR, PW / 2, y, { align: 'center' });
-        y += 7;
+        y += 4.5;
 
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(13);
+        doc.setFontSize(10);
         doc.text('INVOICE', PW / 2, y, { align: 'center' });
         const invLabelW = doc.getTextWidth('INVOICE');
         doc.setLineWidth(0.5);
-        doc.line(PW/2 - invLabelW/2, y + 0.8, PW/2 + invLabelW/2, y + 0.8);
-        y += 6;
+        doc.line(PW/2 - invLabelW/2, y + 0.6, PW/2 + invLabelW/2, y + 0.6);
+        y += 4;
 
         // top outer border
         doc.setLineWidth(0.5);
-        doc.line(ML, 8, ML + CW, 8);
+        doc.line(ML, topY, ML + CW, topY);
 
         // ──────────────────────────────────────────────
         // TO section + Inv No / Date
@@ -2908,27 +2915,27 @@
         doc.setLineWidth(0.5);
         doc.line(ML, y, ML + CW, y);
         const splitX = ML + 108;
-        const toH    = 18;
+        const toH    = 11;
 
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9.5);
-        doc.text('TO,   ' + clientName, ML + 2, y + 6.5);
+        doc.setFontSize(8);
+        doc.text('TO,   ' + clientName, ML + 2, y + 4.5);
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8.5);
-        if (clientPhone) doc.text('Ph: ' + clientPhone, ML + 2, y + 12);
+        doc.setFontSize(6.5);
+        if (clientPhone) doc.text('Ph: ' + clientPhone, ML + 2, y + 8.3);
 
         doc.setLineWidth(0.3);
         doc.line(splitX, y, splitX, y + toH);
 
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.text('Inv. No  :-', splitX + 3, y + 6);
+        doc.setFontSize(7);
+        doc.text('Inv. No  :-', splitX + 3, y + 4);
         doc.setFont('helvetica', 'bold');
-        doc.text(invNumber, splitX + 32, y + 6);
+        doc.text(invNumber, splitX + 32, y + 4);
         doc.setFont('helvetica', 'normal');
-        doc.text('Date  :-', splitX + 3, y + 13);
+        doc.text('Date  :-', splitX + 3, y + 8);
         doc.setFont('helvetica', 'bold');
-        doc.text(invDate, splitX + 32, y + 13);
+        doc.text(invDate, splitX + 32, y + 8);
 
         y += toH;
         doc.setLineWidth(0.5);
@@ -2943,20 +2950,20 @@
         for (let k = 0; k < COL.length - 1; k++) CX.push(CX[k] + COL[k]);
         const HDRS   = ['Sr\nNo', 'Description', 'Unit', 'Qty', 'Rate', 'Amount'];
         const ALIGNS = ['C', 'C', 'C', 'C', 'C', 'C'];
-        const ROW_H  = 8;
+        const ROW_H  = 4.6;
 
         // Table header row
         for (let k = 0; k < COL.length; k++) {
           cellRect(CX[k], y, COL[k], ROW_H, [224, 224, 224]);
           const lines = HDRS[k].split('\n');
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(8);
+          doc.setFontSize(6);
           doc.setTextColor(0,0,0);
           if (lines.length > 1) {
-            doc.text(lines[0], CX[k] + COL[k]/2, y + 3.2, { align: 'center' });
-            doc.text(lines[1], CX[k] + COL[k]/2, y + 6.5, { align: 'center' });
+            doc.text(lines[0], CX[k] + COL[k]/2, y + 1.9, { align: 'center' });
+            doc.text(lines[1], CX[k] + COL[k]/2, y + 3.9, { align: 'center' });
           } else {
-            doc.text(lines[0], CX[k] + COL[k]/2, y + ROW_H/2 + 1.8, { align: 'center' });
+            doc.text(lines[0], CX[k] + COL[k]/2, y + ROW_H/2 + 1.2, { align: 'center' });
           }
         }
         y += ROW_H;
@@ -2976,17 +2983,17 @@
                 case 0: txt = String(i+1); al = 'C'; break;
                 case 1:
                   doc.setFont('helvetica', 'normal');
-                  doc.setFontSize(9);
+                  doc.setFontSize(6.5);
                   doc.setTextColor(0,0,0);
                   const desc = doc.splitTextToSize(row.service, COL[1] - 4)[0];
-                  doc.text(desc, CX[1] + 2, y + ROW_H/2 + 1.8);
+                  doc.text(desc, CX[1] + 2, y + ROW_H/2 + 1.2);
                   continue;
                 case 2: txt = row.unit || ''; al = 'C'; break;
                 case 3: txt = row.qty > 0 ? (row.qtyDisplay || smartNum(row.qty)) : ''; al = 'R'; break;
                 case 4: txt = row.rate > 0 ? (row.rateDisplay || smartNum(row.rate)) : ''; al = 'R'; break;
                 case 5: txt = row.amount > 0 ? row.amount.toFixed(1) : ''; al = 'R'; break;
               }
-              cellText(CX[k], y, COL[k], ROW_H, txt, 'normal', 9, al);
+              cellText(CX[k], y, COL[k], ROW_H, txt, 'normal', 6.5, al);
             }
           }
           y += ROW_H;
@@ -2996,7 +3003,7 @@
         for (let k = 0; k < COL.length; k++) {
           cellRect(CX[k], y, COL[k], ROW_H, [240,240,240]);
           if (k === 3 && qtyTotal > 0) {
-            cellText(CX[k], y, COL[k], ROW_H, qtyTotal.toFixed(2), 'bold', 9, 'R');
+            cellText(CX[k], y, COL[k], ROW_H, qtyTotal.toFixed(2), 'bold', 6.5, 'R');
           }
         }
         y += ROW_H;
@@ -3007,15 +3014,15 @@
         doc.setLineWidth(0.5);
         doc.line(ML, y, ML + CW, y);
 
-        const AMT_ROW_H = 9;
+        const AMT_ROW_H = 5.2;
         const footSplitX = ML + 108;
 
         // Amount in words (left)
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8.5);
+        doc.setFontSize(6);
         doc.setTextColor(0,0,0);
         const wordLines = doc.splitTextToSize(amountInWords(grandTotal), 104);
-        doc.text(wordLines, ML + 2, y + 7);
+        doc.text(wordLines, ML + 2, y + 4.2);
 
         // Vertical divider for footer
         const footH = AMT_ROW_H * 3;
@@ -3024,22 +3031,22 @@
 
         // Basic Amount
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.text('Basic Amount  :-', footSplitX + 3, y + AMT_ROW_H/2 + 1.8);
-        doc.text(grandTotal.toFixed(1), ML + CW - 2, y + AMT_ROW_H/2 + 1.8, { align: 'right' });
+        doc.setFontSize(6.5);
+        doc.text('Basic Amount  :-', footSplitX + 3, y + AMT_ROW_H/2 + 1.3);
+        doc.text(grandTotal.toFixed(1), ML + CW - 2, y + AMT_ROW_H/2 + 1.3, { align: 'right' });
         doc.setLineWidth(0.2);
         doc.line(footSplitX, y + AMT_ROW_H, ML + CW, y + AMT_ROW_H);
 
         // Round Off
         const roundOffTxt = roundOff === 0 ? '-' : (roundOff > 0 ? '+' : '') + roundOff.toFixed(1);
-        doc.text('Round Off  :-', footSplitX + 3, y + AMT_ROW_H + AMT_ROW_H/2 + 1.8);
-        doc.text(roundOffTxt, ML + CW - 2, y + AMT_ROW_H + AMT_ROW_H/2 + 1.8, { align: 'right' });
+        doc.text('Round Off  :-', footSplitX + 3, y + AMT_ROW_H + AMT_ROW_H/2 + 1.3);
+        doc.text(roundOffTxt, ML + CW - 2, y + AMT_ROW_H + AMT_ROW_H/2 + 1.3, { align: 'right' });
         doc.line(footSplitX, y + AMT_ROW_H*2, ML + CW, y + AMT_ROW_H*2);
 
         // Total Amount
         doc.setFont('helvetica', 'bold');
-        doc.text('Total Amount  :-', footSplitX + 3, y + AMT_ROW_H*2 + AMT_ROW_H/2 + 1.8);
-        doc.text(totalAmt.toFixed(1), ML + CW - 2, y + AMT_ROW_H*2 + AMT_ROW_H/2 + 1.8, { align: 'right' });
+        doc.text('Total Amount  :-', footSplitX + 3, y + AMT_ROW_H*2 + AMT_ROW_H/2 + 1.3);
+        doc.text(totalAmt.toFixed(1), ML + CW - 2, y + AMT_ROW_H*2 + AMT_ROW_H/2 + 1.3, { align: 'right' });
 
         y += footH + 1;
 
@@ -3050,28 +3057,28 @@
         doc.line(ML, y, ML + CW, y);
 
         const remarkColW = footSplitX - ML - 4;
-        const gujNotice  = await buildGujaratiNoticeImage(remarkColW);
-        const remarkH    = Math.max(16, 8 + gujNotice.heightMm + 3);
+        const gujNotice  = await buildGujaratiNoticeImage(remarkColW, 2.3);
+        const remarkH    = Math.max(10, 5 + gujNotice.heightMm + 2);
         doc.line(footSplitX, y, footSplitX, y + remarkH);
 
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.text('Remark  :-', ML + 2, y + 6);
-        doc.addImage(gujNotice.dataUrl, 'PNG', ML + 2, y + 8, remarkColW, gujNotice.heightMm);
+        doc.setFontSize(7);
+        doc.text('Remark  :-', ML + 2, y + 3.8);
+        doc.addImage(gujNotice.dataUrl, 'PNG', ML + 2, y + 5, remarkColW, gujNotice.heightMm);
 
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8.5);
-        doc.text('E&OE', ML + CW - 2, y + 6, { align: 'right' });
+        doc.setFontSize(6);
+        doc.text('E&OE', ML + CW - 2, y + 4, { align: 'right' });
         doc.setFont('helvetica', 'bold');
-        doc.text('For ' + SELLER_NAME, ML + CW - 2, y + 13, { align: 'right' });
+        doc.text('For ' + SELLER_NAME, ML + CW - 2, y + 8, { align: 'right' });
 
         y += remarkH;
 
         // Outer border
         doc.setLineWidth(0.5);
         doc.line(ML, y, ML + CW, y);  // bottom
-        doc.line(ML, 8, ML, y);        // left
-        doc.line(ML + CW, 8, ML + CW, y); // right
+        doc.line(ML, topY, ML, y);        // left
+        doc.line(ML + CW, topY, ML + CW, y); // right
 
         const invMsg  = 'Hello ' + clientName + ', here is your Sale Invoice from DM BEADS.' +
           '\nInvoice No: ' + invNumber +
