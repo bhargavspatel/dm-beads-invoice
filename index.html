@@ -1675,27 +1675,40 @@
     // jsPDF's built-in fonts also have no Gujarati glyphs, so the notice
     // below is rendered with the browser's Gujarati font onto a canvas and
     // embedded as a PNG image instead of drawn with doc.text().
-    async function buildGujaratiNoticeImage(CW) {
+    async function buildGujaratiNoticeImage(CW, maxFontMm) {
       const lines = [
         '1. માલ માં કોઈ પણ જાતની કલર ગેરંટી આવશે નહી.',
         '2. મશીન માં નાખતી વખતે ચેક કરી ને નાખવૂ પાછળ થી કોઈ દલીલ સાંભળવા માં આવશે નહી.',
         '3. રોજ ગોલ્ડ, સિલ્વર, ગોલ્ડ બધી આઈટમ ચાઈના ઓરિજિનલ આવશે 100 % ગેરંટી.'
       ];
-      const scale     = 8; // px per mm — keeps the embedded PNG crisp
-      const widthPx   = Math.round(CW * scale);
-      const fontMm    = 4.2; // ~16px equivalent
-      const fontPx    = Math.round(fontMm * scale);
-      const lineHPx   = Math.round((fontMm + 1.6) * scale);
-      const padPx     = Math.round(1.5 * scale);
-      const heightPx  = lineHPx * lines.length + padPx * 2;
+      const scale   = 8; // px per mm — keeps the embedded PNG crisp
+      const widthPx = Math.round(CW * scale);
+      const padPx   = Math.round(1.2 * scale);
 
       const fontFamily = 'Noto Sans Gujarati';
-      const fontSpec    = '700 ' + fontPx + 'px "' + fontFamily + '"';
       try {
         await gujFontCssReady;
-        await document.fonts.load(fontSpec, lines.join(''));
+        await document.fonts.load('700 40px "' + fontFamily + '"', lines.join(''));
         await document.fonts.ready;
       } catch (e) { /* fall through to system font fallback below */ }
+
+      // Shrink the font until the widest line fits the given width — the
+      // remark-box placement is much narrower than the full invoice width.
+      const probe = document.createElement('canvas').getContext('2d');
+      function setProbeFont(px) {
+        probe.font = '700 ' + px + 'px "' + fontFamily + '","Nirmala UI","Shruti",sans-serif';
+      }
+      let fontPx = Math.round((maxFontMm || 4.2) * scale);
+      setProbeFont(fontPx);
+      const widest = Math.max.apply(null, lines.map(function (l) { return probe.measureText(l).width; }));
+      const maxTextWidthPx = widthPx - padPx * 2;
+      if (widest > maxTextWidthPx) {
+        fontPx = Math.max(Math.floor(fontPx * (maxTextWidthPx / widest)), Math.round(2.6 * scale));
+        setProbeFont(fontPx);
+      }
+
+      const lineHPx  = Math.round(fontPx * 1.55);
+      const heightPx = lineHPx * lines.length + padPx * 2;
 
       const canvas = document.createElement('canvas');
       canvas.width  = widthPx;
@@ -1704,7 +1717,7 @@
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, widthPx, heightPx);
       ctx.fillStyle = '#000000';
-      ctx.font = '700 ' + fontPx + 'px "' + fontFamily + '","Nirmala UI","Shruti",sans-serif';
+      ctx.font = probe.font;
       ctx.textBaseline = 'top';
       lines.forEach(function (line, i) {
         ctx.fillText(line, padPx, padPx + i * lineHPx);
@@ -2313,13 +2326,14 @@
       doc.text('Round Off  :-',fsx+3,y+AH+AH/2+1.8); doc.text(rot,ML+CW-2,y+AH+AH/2+1.8,{align:'right'});
       doc.line(fsx,y+AH*2,ML+CW,y+AH*2);
       doc.setFont('helvetica','bold'); doc.text('Total Amount  :-',fsx+3,y+AH*2+AH/2+1.8); doc.text(totalAmt.toFixed(1),ML+CW-2,y+AH*2+AH/2+1.8,{align:'right'});
-      y+=AH*3+1; doc.setLineWidth(0.4); doc.line(ML,y,ML+CW,y); const rH=16;
-      doc.line(fsx,y,fsx,y+rH); doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.text('Remark  :-',ML+2,y+7);
+      y+=AH*3+1; doc.setLineWidth(0.4); doc.line(ML,y,ML+CW,y);
+      const remarkColW = fsx-ML-4;
+      const gujNotice   = await buildGujaratiNoticeImage(remarkColW);
+      const rH = Math.max(16, 8+gujNotice.heightMm+3);
+      doc.line(fsx,y,fsx,y+rH); doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.text('Remark  :-',ML+2,y+6);
+      doc.addImage(gujNotice.dataUrl,'PNG',ML+2,y+8,remarkColW,gujNotice.heightMm);
       doc.setFontSize(8.5); doc.text('E&OE',ML+CW-2,y+6,{align:'right'}); doc.setFont('helvetica','bold'); doc.text('For DM BEADS',ML+CW-2,y+13,{align:'right'});
       y+=rH; doc.setLineWidth(0.5); doc.line(ML,y,ML+CW,y); doc.line(ML,8,ML,y); doc.line(ML+CW,8,ML+CW,y);
-
-      const gujNotice = await buildGujaratiNoticeImage(CW);
-      doc.addImage(gujNotice.dataUrl, 'PNG', ML, y+4, CW, gujNotice.heightMm);
 
       const waMsg='Invoice '+invNumber+' for '+clientName+'\nDate: '+invDate+'\nTotal: Rs.'+grandTotal.toFixed(2);
       const waURL=buildWhatsAppURL(clientPhone,waMsg);
@@ -3031,12 +3045,16 @@
         // ──────────────────────────────────────────────
         doc.setLineWidth(0.4);
         doc.line(ML, y, ML + CW, y);
-        const remarkH = 16;
+
+        const remarkColW = footSplitX - ML - 4;
+        const gujNotice  = await buildGujaratiNoticeImage(remarkColW);
+        const remarkH    = Math.max(16, 8 + gujNotice.heightMm + 3);
         doc.line(footSplitX, y, footSplitX, y + remarkH);
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
-        doc.text('Remark  :-', ML + 2, y + 7);
+        doc.text('Remark  :-', ML + 2, y + 6);
+        doc.addImage(gujNotice.dataUrl, 'PNG', ML + 2, y + 8, remarkColW, gujNotice.heightMm);
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8.5);
@@ -3051,10 +3069,6 @@
         doc.line(ML, y, ML + CW, y);  // bottom
         doc.line(ML, 8, ML, y);        // left
         doc.line(ML + CW, 8, ML + CW, y); // right
-
-        // Gujarati notice
-        const gujNotice = await buildGujaratiNoticeImage(CW);
-        doc.addImage(gujNotice.dataUrl, 'PNG', ML, y + 4, CW, gujNotice.heightMm);
 
         const invMsg  = 'Hello ' + clientName + ', here is your Sale Invoice from DM BEADS.' +
           '\nInvoice No: ' + invNumber +
