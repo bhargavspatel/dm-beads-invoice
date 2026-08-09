@@ -1237,7 +1237,8 @@
         <div class="card-title">Client Details</div>
         <div class="field">
           <label>Client Name</label>
-          <input type="text" id="client-name" placeholder="e.g. Ramesh Traders" />
+          <input type="text" id="client-name" placeholder="e.g. Ramesh Traders" list="client-name-list" autocomplete="off" />
+          <datalist id="client-name-list"></datalist>
         </div>
         <div class="field">
           <label>Phone Number <span class="opt">(unique client ID)</span></label>
@@ -3238,7 +3239,29 @@
       allClients.sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
 
       renderClientList(allClients);
+      renderClientNameSuggestions(allClients);
     }
+
+    // ── Populate the Client Name autocomplete list from saved clients ──
+    function renderClientNameSuggestions(clients) {
+      const list = document.getElementById('client-name-list');
+      list.innerHTML = clients
+        .filter(function (c) { return c.name; })
+        .map(function (c) { return '<option value="' + c.name.replace(/"/g, '&quot;') + '"></option>'; })
+        .join('');
+    }
+
+    // When the typed name matches a saved client exactly (e.g. picked from the
+    // suggestion list), auto-fill their phone number so it isn't retyped.
+    document.getElementById('client-name').addEventListener('input', function () {
+      const typed = this.value.trim().toLowerCase();
+      if (!typed) return;
+      const match = allClients.find(function (c) { return (c.name || '').trim().toLowerCase() === typed; });
+      const phoneField = document.getElementById('client-phone');
+      if (match && !phoneField.value.trim()) {
+        phoneField.value = match.phone || '';
+      }
+    });
 
     // ── Render the flat client list ──
     // Fill the invoice form (left side) with a client's name, phone, and last invoice's line items
