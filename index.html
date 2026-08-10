@@ -2461,24 +2461,43 @@
     }
 
     function exportCSV() {
-      const rows = [['Type','Client Name','Phone','Date','Invoice No','Description','Amount','Outstanding']];
+      function parseDMY(str) {
+        if (!str) return null;
+        const parts = str.split('/');
+        if (parts.length !== 3) return null;
+        const dt = new Date(parseInt(parts[2],10), parseInt(parts[1],10)-1, parseInt(parts[0],10));
+        return isNaN(dt.getTime()) ? null : dt;
+      }
+      function fmtDMY(dt) {
+        return String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+dt.getFullYear();
+      }
+
+      const rows = [['Client Name','Phone','Balance','Last Activity Date']];
+      let totalOutstanding = 0;
+
       allClients.forEach(function (c) {
-        (c.purchases || []).forEach(function (p) {
-          const desc = (p.lineItems || []).map(function(it){ return (it.qty||'')+(it.unit?' '+it.unit:'')+' '+it.service+(it.rate?' @ '+it.rate:''); }).join(' | ');
-          rows.push(['INVOICE', c.name||'', c.phone||'', p.date||'', p.invoiceNo||'', desc, (p.grandTotal||0).toFixed(2), '']);
-        });
-        (c.payments || []).forEach(function (p) {
-          rows.push(['PAYMENT', c.name||'', c.phone||'', p.date||'', '', '', (p.amount||0).toFixed(2), '']);
-        });
-        rows.push(['BALANCE', c.name||'', c.phone||'', '', '', '', '', (c.outstanding||0).toFixed(2)]);
+        const dates = [].concat(
+          (c.purchases || []).map(function (p) { return parseDMY(p.date); }),
+          (c.payments  || []).map(function (p) { return parseDMY(p.date); })
+        ).filter(Boolean);
+        const lastDateStr = dates.length ? fmtDMY(new Date(Math.max.apply(null, dates))) : '';
+
+        const outstanding = c.outstanding || 0;
+        totalOutstanding += outstanding;
+        const balanceStr = outstanding === 0 ? 'Zero Balance' : fmtINR(outstanding);
+
+        rows.push([c.name||'', c.phone||'', balanceStr, lastDateStr]);
       });
+
+      rows.push(['', '', '', '']);
+      rows.push(['TOTAL OUTSTANDING', '', fmtINR(totalOutstanding), '']);
 
       const csv = rows.map(function(r){ return r.map(function(cell){ const s=String(cell); return s.includes(',')||s.includes('"')||s.includes('\n') ? '"'+s.replace(/"/g,'""')+'"' : s; }).join(','); }).join('\r\n');
       const blob = new Blob(['﻿'+csv], { type:'text/csv;charset=utf-8;' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       const now = new Date();
-      a.download = 'dm-beads-backup-' + now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + '.csv';
+      a.download = 'dm-beads-outstanding-' + now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + '.csv';
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       URL.revokeObjectURL(a.href);
     }
