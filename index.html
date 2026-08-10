@@ -2258,9 +2258,10 @@
 
     async function reprintInvoice(purchase, client) {
       const { jsPDF } = window.jspdf;
-      // Half of an A4 sheet (210 x 297mm / 2 = 210 x 148.5mm, ≈ 8.27 x 5.85in)
-      // so two invoices print stacked on one A4 page — matches downloadPDF().
-      const PW = 210, PH = 148.5, ML = 15, MR = 15, CW = PW - ML - MR;
+      // 8 x 5.5in (203.2 x 139.7mm) — a bit smaller than exact half-A4 so
+      // there's manual print/cut margin when stacking two per A4 sheet.
+      // Margins are tightened (not the 180mm table width) to fit the narrower page.
+      const PW = 203.2, PH = 139.7, ML = 11.6, MR = 11.6, CW = PW - ML - MR;
       const doc = new jsPDF({ unit: 'mm', format: [PW, PH], orientation: 'l' });
       doc.setDrawColor(0,0,0); doc.setTextColor(0,0,0);
 
@@ -2644,9 +2645,9 @@
     // ─────────────────────────────────────────────
     async function generateReceiptPDF(client, payment, remainingAfter) {
       const { jsPDF } = window.jspdf;
-      // Half of an A4 sheet (210 x 297mm / 2 = 210 x 148.5mm, ≈ 8.27 x 5.85in)
-      // so two receipts print stacked on one A4 page with no gap or overlap.
-      const PW = 210, PH = 148.5;
+      // 8 x 5.5in (203.2 x 139.7mm) — a bit smaller than exact half-A4 so
+      // there's manual print/cut margin when stacking two per A4 sheet.
+      const PW = 203.2, PH = 139.7;
       const ML = 12, MR = 12;
       const CW = PW - ML - MR;
 
@@ -2821,10 +2822,11 @@
         const { jsPDF } = window.jspdf;
 
         // ── Page constants ──
-        // Half of an A4 sheet (210 x 297mm / 2 = 210 x 148.5mm, ≈ 8.27 x 5.85in)
-        // so two invoices print stacked on one A4 page.
-        const PW = 210, PH = 148.5;
-        const ML = 15, MR = 15;
+        // 8 x 5.5in (203.2 x 139.7mm) — a bit smaller than exact half-A4 so
+        // there's manual print/cut margin when stacking two per A4 sheet.
+        // Margins are tightened (not the 180mm table width) to fit the narrower page.
+        const PW = 203.2, PH = 139.7;
+        const ML = 11.6, MR = 11.6;
         const CW = PW - ML - MR;
 
         const doc = new jsPDF({ unit: 'mm', format: [PW, PH], orientation: 'l' });
